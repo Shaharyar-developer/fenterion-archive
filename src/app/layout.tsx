@@ -1,3 +1,4 @@
+import "../lib/orpc.server";
 import type { Metadata } from "next";
 import { Fira_Sans, Fira_Mono } from "next/font/google";
 import "./globals.css";

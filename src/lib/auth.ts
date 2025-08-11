@@ -10,3 +10,5 @@ export const auth = betterAuth({
     provider: "pg",
   }),
 });
+
+export type Session = typeof auth.$Infer.Session;
