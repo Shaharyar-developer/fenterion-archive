@@ -36,19 +36,10 @@ Font: Monospaced, archivist-core.
 - DB: PostgreSQL
 - Deployment:
     Frontend: Vercel
-    Backend: Self-hosted via Coolify
+    Backend: Self-hosted
 - DNS/SSL: Cloudflare
 
-📂 Project Structure
-```
-.
-|-- src/
-|   |-- app/           # Next.js app router pages/layouts
-|   |-- components/    # UI components
-|   |-- constants/     # Static site config
-|   |-- lib/           # Utilities/helpers
-|-- public/            # Static assets
-```
+
 🚀 Development
 ```bash
 # Install dependencies
