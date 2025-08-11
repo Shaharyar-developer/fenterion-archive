@@ -1,6 +1,6 @@
 {
-  "id": "75a8b6f2-d2da-452f-920a-275aec5fda40",
-  "prevId": "2495f5dd-d8bd-46da-b2fd-94f1fbb5b00b",
+  "id": "0fa9b68b-db68-495b-8a49-7e781f403d87",
+  "prevId": "dda716bd-b970-4653-a409-816f2ef50c12",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -425,6 +425,12 @@
           "primaryKey": true,
           "notNull": true
         },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "email": {
           "name": "email",
           "type": "text",
@@ -443,18 +449,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "username": {
-          "name": "username",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "displayUsername": {
-          "name": "displayUsername",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "avatar_url": {
           "name": "avatar_url",
           "type": "text",
@@ -468,6 +462,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'reader'"
+        },
+        "display_username": {
+          "name": "display_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -493,11 +493,11 @@
             "email"
           ]
         },
-        "user_username_unique": {
-          "name": "user_username_unique",
+        "user_display_username_unique": {
+          "name": "user_display_username_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "username"
+            "display_username"
           ]
         }
       },

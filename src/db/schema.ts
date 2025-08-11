@@ -54,19 +54,16 @@ export const chapterStatusEnum = pgEnum(
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
-
+  name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified")
     .$defaultFn(() => false)
     .notNull(),
   image: text("image"),
 
-  username: text("username").unique(),
-  displayUsername: text("displayUsername"),
-  avatarUrl: text("avatar_url"), // can be redundant with image, but kept in case you separate user avatars from profile pics
+  avatarUrl: text("avatar_url"),
   role: userRoleEnum("role").default(UserRole.READER).notNull(),
-
-  // Dates from original `user` table
+  displayUsername: text("display_username").unique(),
   createdAt: timestamp("created_at")
     .$defaultFn(() => /* @__PURE__ */ new Date())
     .notNull(),

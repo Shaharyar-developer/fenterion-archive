@@ -2,6 +2,11 @@ export const ROUTES = {
   home: "/",
   library: "/library",
 
+  auth: {
+    signIn: "/auth/sign-in",
+    signUp: "/auth/sign-up",
+  },
+
   author: {
     root: "/author",
     byId: (id: string) => `/author/${id}`,
@@ -13,6 +18,15 @@ export const ROUTES = {
     byId: (id: string) => `/book/${id}`,
     chapter: (bookId: string, slug: string) =>
       `/book/${bookId}/chapter/${slug}`,
+  },
+
+  api: {
+    auth: {
+      all: "/api/auth/[...all]",
+    },
+    rpc: {
+      rest: "/api/rpc/[...rest]",
+    },
   },
 } as const;
 
