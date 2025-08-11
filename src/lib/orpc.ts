@@ -42,6 +42,7 @@ export const createPlanet = authenticated
     return { id: 1, name: "name" };
   });
 
+
 export const router = {
   planet: {
     list: listPlanet,

@@ -4,6 +4,7 @@ import { Fira_Sans, Fira_Mono } from "next/font/google";
 import "./globals.css";
 import siteconfig from "@/constants/siteconfig";
 import { ThemeProvider } from "@/providers/theme";
+import QueryProviders from "@/providers/query";
 
 const firaSans = Fira_Sans({
   variable: "--font-fira-sans",
@@ -30,14 +31,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${firaSans.variable} ${firaMono.variable}`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
+        <QueryProviders>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+        </QueryProviders>
       </body>
     </html>
   );
