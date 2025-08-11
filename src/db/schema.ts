@@ -11,11 +11,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 export function enumToPgEnum<T extends Record<string, unknown>>(
-  myEnum: T,
+  myEnum: T
 ): [T[keyof T], ...T[keyof T][]] {
   return Object.values(myEnum).map((value) => `${value}`) as [
     T[keyof T],
-    ...T[keyof T][],
+    ...T[keyof T][]
   ];
 }
 
@@ -49,24 +49,20 @@ export const workStatusEnum = pgEnum("work_status", enumToPgEnum(WorkStatus));
 export const workTypeEnum = pgEnum("work_type", enumToPgEnum(WorkType));
 export const chapterStatusEnum = pgEnum(
   "chapter_status",
-  enumToPgEnum(ChapterStatus),
+  enumToPgEnum(ChapterStatus)
 );
 
 export const user = pgTable("user", {
-  // ID from original `user` table (text ID, probably from your auth provider)
   id: text("id").primaryKey(),
 
-  // From original `user` table
-  name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified")
     .$defaultFn(() => false)
     .notNull(),
   image: text("image"),
 
-  // From `users` table (new fields)
-  username: varchar("username", { length: 50 }).unique(), // not required if using name
-  displayName: varchar("display_name", { length: 100 }),
+  username: text("username").unique(),
+  displayUsername: text("displayUsername"),
   avatarUrl: text("avatar_url"), // can be redundant with image, but kept in case you separate user avatars from profile pics
   role: userRoleEnum("role").default(UserRole.READER).notNull(),
 
@@ -115,10 +111,10 @@ export const verification = pgTable("verification", {
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").$defaultFn(
-    () => /* @__PURE__ */ new Date(),
+    () => /* @__PURE__ */ new Date()
   ),
   updatedAt: timestamp("updated_at").$defaultFn(
-    () => /* @__PURE__ */ new Date(),
+    () => /* @__PURE__ */ new Date()
   ),
 });
 

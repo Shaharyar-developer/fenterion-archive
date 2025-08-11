@@ -5,6 +5,7 @@ import "./globals.css";
 import siteconfig from "@/constants/siteconfig";
 import { ThemeProvider } from "@/providers/theme";
 import QueryProviders from "@/providers/query";
+import { Toaster } from "@/components/ui/sonner";
 
 const firaSans = Fira_Sans({
   variable: "--font-fira-sans",
@@ -39,6 +40,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <Toaster />
           </ThemeProvider>
         </QueryProviders>
       </body>
