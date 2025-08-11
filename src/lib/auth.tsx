@@ -6,7 +6,6 @@ import { env } from "./env";
 import Plunk from "@plunk/node";
 import { VerifyEmail } from "@/components/email/verify-email";
 import { render } from "@react-email/components";
-import { redirect } from "next/navigation";
 
 export const auth = betterAuth({
   emailAndPassword: {
@@ -14,7 +13,7 @@ export const auth = betterAuth({
     requireEmailVerification: true,
   },
   emailVerification: {
-    async sendVerificationEmail({ token, url, user }, request) {
+    async sendVerificationEmail({ url, user }) {
       const plunk = new Plunk(env.PLUNK_API_KEY);
       const emailContent = await render(
         <VerifyEmail url={url} session={user} />

@@ -24,21 +24,21 @@ export const listPlanet = os
       cursor: z.number().int().min(0).default(0),
     })
   )
-  .handler(async ({ input }) => {
+  .handler(async () => {
     // your list code here
     return [{ id: 1, name: "name" }];
   });
 
 export const findPlanet = os
   .input(PlanetSchema.pick({ id: true }))
-  .handler(async ({ input }) => {
+  .handler(async () => {
     // your find code here
     return { id: 1, name: "name" };
   });
 
 export const createPlanet = authenticated
   .input(PlanetSchema.omit({ id: true }))
-  .handler(async ({ input, context }) => {
+  .handler(async () => {
     return { id: 1, name: "name" };
   });
 

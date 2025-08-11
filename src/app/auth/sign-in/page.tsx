@@ -22,7 +22,7 @@ export default async function Page() {
           <Separator className="my-2" />
           <SignInForm />
           <p className="mt-5 text-sm text-center">
-            Don't have an account?
+            Don&apos;t have an account?
             <Link
               href={ROUTES.auth.signUp}
               className="ml-1 underline text-muted-foreground"

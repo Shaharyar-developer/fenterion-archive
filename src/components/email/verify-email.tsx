@@ -54,8 +54,8 @@ export function VerifyEmail(props: { url: string; session: User }) {
             </Section>
 
             <Text style={smallText}>
-              If the button above doesn't work, you can copy and paste this link
-              into your browser:
+              If the button above doesn&apos;t work, you can copy and paste this
+              link into your browser:
             </Text>
             <Link href={url} style={link}>
               {url}
@@ -64,7 +64,7 @@ export function VerifyEmail(props: { url: string; session: User }) {
             <Hr style={hr} />
 
             <Text style={footer}>
-              This verification link will expire in 24 hours. If you didn't
+              This verification link will expire in 24 hours. If you didn&apos;t
               create this account, you can safely ignore this email.
             </Text>
           </Section>

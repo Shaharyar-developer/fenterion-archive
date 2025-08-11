@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { oklch, hsl, formatHex } from "culori";
+import { oklch, formatHex } from "culori";
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient();
