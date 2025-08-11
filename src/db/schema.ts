@@ -11,11 +11,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 export function enumToPgEnum<T extends Record<string, unknown>>(
-  myEnum: T
+  myEnum: T,
 ): [T[keyof T], ...T[keyof T][]] {
   return Object.values(myEnum).map((value) => `${value}`) as [
     T[keyof T],
-    ...T[keyof T][]
+    ...T[keyof T][],
   ];
 }
 
@@ -49,26 +49,84 @@ export const workStatusEnum = pgEnum("work_status", enumToPgEnum(WorkStatus));
 export const workTypeEnum = pgEnum("work_type", enumToPgEnum(WorkType));
 export const chapterStatusEnum = pgEnum(
   "chapter_status",
-  enumToPgEnum(ChapterStatus)
+  enumToPgEnum(ChapterStatus),
 );
 
-// USERS — all registered accounts
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  username: varchar("username", { length: 50 }).notNull().unique(),
+export const user = pgTable("user", {
+  // ID from original `user` table (text ID, probably from your auth provider)
+  id: text("id").primaryKey(),
+
+  // From original `user` table
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified")
+    .$defaultFn(() => false)
+    .notNull(),
+  image: text("image"),
+
+  // From `users` table (new fields)
+  username: varchar("username", { length: 50 }).unique(), // not required if using name
   displayName: varchar("display_name", { length: 100 }),
-  avatarUrl: text("avatar_url"),
+  avatarUrl: text("avatar_url"), // can be redundant with image, but kept in case you separate user avatars from profile pics
   role: userRoleEnum("role").default(UserRole.READER).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+
+  // Dates from original `user` table
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => /* @__PURE__ */ new Date())
+    .notNull(),
+  updatedAt: timestamp("updated_at")
+    .$defaultFn(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expires_at").notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+});
+
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").$defaultFn(
+    () => /* @__PURE__ */ new Date(),
+  ),
+  updatedAt: timestamp("updated_at").$defaultFn(
+    () => /* @__PURE__ */ new Date(),
+  ),
 });
 
 // AUTHORS — only those who can publish
 export const authors = pgTable("authors", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .references(() => users.id)
+  userId: text("user_id")
+    .references(() => user.id)
     .notNull()
     .unique(),
   penName: varchar("pen_name", { length: 100 }).notNull(),
@@ -114,8 +172,8 @@ export const chapters = pgTable("chapters", {
 // LIBRARY / FAVORITES
 export const libraryEntries = pgTable("library_entries", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .references(() => users.id)
+  userId: text("user_id")
+    .references(() => user.id)
     .notNull(),
   workId: integer("work_id")
     .references(() => works.id)
