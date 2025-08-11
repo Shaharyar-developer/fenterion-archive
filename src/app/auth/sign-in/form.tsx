@@ -29,6 +29,7 @@ const formSchema = z.object({
 
 export function SignInForm() {
   const [showPassword, setShowPassword] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -43,8 +44,10 @@ export function SignInForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    authClient.signIn
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setLoading(true);
+    toast.info("Signing in!");
+    await authClient.signIn
       .email({
         ...values,
         rememberMe: values.checkbox,
@@ -53,7 +56,7 @@ export function SignInForm() {
       .catch((error) => {
         toast.error(error.message);
       });
-    toast.success("Sign in successful!");
+    setLoading(false);
   }
 
   return (
@@ -66,7 +69,11 @@ export function SignInForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="m@example.com" {...field} />
+                <Input
+                  disabled={loading}
+                  placeholder="m@example.com"
+                  {...field}
+                />
               </FormControl>
               <FormDescription>This is your email address</FormDescription>
               <FormMessage />
@@ -82,6 +89,7 @@ export function SignInForm() {
               <FormControl>
                 <div className="relative">
                   <Input
+                    disabled={loading}
                     type={showPassword ? "text" : "password"}
                     placeholder="********"
                     {...field}
@@ -112,6 +120,7 @@ export function SignInForm() {
             <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 cursor-pointer">
               <FormControl>
                 <Checkbox
+                  disabled={loading}
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
@@ -126,8 +135,11 @@ export function SignInForm() {
           )}
         />
 
-        <Button type="submit" className="w-full">
-          Submit
+        <Button disabled={loading} type="submit" className="w-full">
+          {loading && (
+            <div className="w-4 h-4 border-[2px] border-secondary border-t-primary rounded-full animate-spin" />
+          )}
+          {loading ? "Signing In..." : "Sign In"}
         </Button>
       </form>
     </Form>

@@ -19,19 +19,32 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { authClient } from "@/lib/utils";
+import { ROUTES } from "@/lib/routes";
 
-const formSchema = z.object({
-  name: z.string().min(5).max(20),
-  email: z.email(),
-  password: z.string(),
-  checkbox: z.boolean(),
-});
+const formSchema = z
+  .object({
+    name: z.string().min(5).max(20),
+    email: z.email(),
+    password: z.string(),
+    confirmPassword: z.string(),
+    checkbox: z.boolean(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 export function SignUpForm() {
   const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -40,19 +53,29 @@ export function SignUpForm() {
       email: "",
       name: "",
       password: "",
+      confirmPassword: "",
       checkbox: true,
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    authClient.signUp
-      .email({
-        ...values,
-      })
-      .catch((error) => {
-        toast.error(error.message);
-      });
-    toast.success("Sign up successful! Please check your email to verify.");
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setLoading(true);
+    toast.info("Signing up, please wait...");
+
+    // Exclude confirmPassword from the values sent to the server
+    const { confirmPassword, ...submitValues } = values;
+    try {
+      await authClient.signUp
+        .email({
+          ...submitValues,
+          callbackURL: ROUTES.home,
+        })
+        .catch((error) => {
+          toast.error(error.message);
+        });
+    } catch (error) {}
+
+    setLoading(false);
   }
 
   return (
@@ -65,7 +88,7 @@ export function SignUpForm() {
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input placeholder="Spite" {...field} />
+                <Input disabled={loading} placeholder="Spite" {...field} />
               </FormControl>
               <FormDescription>This is your username</FormDescription>
               <FormMessage />
@@ -79,7 +102,11 @@ export function SignUpForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="m@example.com" {...field} />
+                <Input
+                  disabled={loading}
+                  placeholder="m@example.com"
+                  {...field}
+                />
               </FormControl>
               <FormDescription>This is your email address</FormDescription>
               <FormMessage />
@@ -95,11 +122,13 @@ export function SignUpForm() {
               <FormControl>
                 <div className="relative">
                   <Input
+                    disabled={loading}
                     type={showPassword ? "text" : "password"}
                     placeholder="********"
                     {...field}
                   />
                   <button
+                    type="button"
                     className="absolute right-2 top-1/2 transform -translate-y-1/2"
                     onClick={togglePasswordVisibility}
                   >
@@ -120,11 +149,46 @@ export function SignUpForm() {
         />
         <FormField
           control={form.control}
+          name="confirmPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Confirm Password</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input
+                    disabled={loading}
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="********"
+                    {...field}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                    onClick={toggleConfirmPasswordVisibility}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOffIcon className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <EyeIcon className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </button>
+                </div>
+              </FormControl>
+              <FormDescription>
+                Re-enter your password to confirm
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
           name="checkbox"
           render={({ field }) => (
             <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 cursor-pointer">
               <FormControl>
                 <Checkbox
+                  disabled={loading}
                   checked={field.value}
                   onCheckedChange={field.onChange}
                 />
@@ -139,8 +203,11 @@ export function SignUpForm() {
           )}
         />
 
-        <Button type="submit" className="w-full">
-          Submit
+        <Button disabled={loading} type="submit" className="w-full">
+          {loading && (
+            <div className="w-4 h-4 border-[2px] border-secondary border-t-primary rounded-full animate-spin" />
+          )}
+          {loading ? "Signing Up..." : "Sign Up"}
         </Button>
       </form>
     </Form>

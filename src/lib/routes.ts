@@ -1,6 +1,7 @@
 export const ROUTES = {
   home: "/",
   library: "/library",
+  profile: "/profile",
 
   auth: {
     signIn: "/auth/sign-in",
