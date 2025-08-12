@@ -4,6 +4,7 @@ import { oklch, formatHex } from "culori";
 import { createAuthClient } from "better-auth/react";
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import type { auth } from "./auth";
+import { env } from "./env";
 
 export const authClient = createAuthClient({
   plugins: [inferAdditionalFields<typeof auth>()],
@@ -75,4 +76,8 @@ export function extractExtension(filename: string): string {
     return "";
   }
   return filename.slice(lastDot + 1);
+}
+
+export function getCoverUrl(key: string) {
+  return `${env.NEXT_PUBLIC_R2_CDN}/${key}`;
 }

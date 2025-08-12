@@ -1,4 +1,4 @@
-import { createEnv } from "@t3-oss/env-core";
+import { createEnv } from "@t3-oss/env-nextjs";
 import z from "zod";
 
 export const env = createEnv({
@@ -10,6 +10,9 @@ export const env = createEnv({
     R2_ACCESS: z.string(),
     R2_SECRET: z.string(),
   },
+  client: {
+    NEXT_PUBLIC_R2_CDN: z.string(),
+  },
   runtimeEnv: {
     SITE_URL: process.env.SITE_URL,
     DATABASE_URL: process.env.DATABASE_URL,
@@ -17,5 +20,6 @@ export const env = createEnv({
     R2_ENDPOINT: process.env.R2_ENDPOINT,
     R2_ACCESS: process.env.R2_ACCESS,
     R2_SECRET: process.env.R2_SECRET,
+    NEXT_PUBLIC_R2_CDN: process.env.NEXT_PUBLIC_R2_CDN,
   },
 });
