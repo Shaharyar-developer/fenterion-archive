@@ -19,8 +19,7 @@ CREATE TABLE "account" (
 );
 --> statement-breakpoint
 CREATE TABLE "authors" (
-	"id" text PRIMARY KEY NOT NULL,
-	"user_id" text NOT NULL,
+	"user_id" text PRIMARY KEY NOT NULL,
 	"pen_name" varchar(100) NOT NULL,
 	"bio" text,
 	"joined_at" timestamp DEFAULT now() NOT NULL,
@@ -94,7 +93,7 @@ CREATE TABLE "works" (
 	"type" "work_type" DEFAULT 'story' NOT NULL,
 	"status" "work_status" DEFAULT 'draft' NOT NULL,
 	"word_count" integer,
-	"tags" jsonb,
+	"tags" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "works_slug_unique" UNIQUE("slug")
@@ -106,4 +105,4 @@ ALTER TABLE "chapters" ADD CONSTRAINT "chapters_work_id_works_id_fk" FOREIGN KEY
 ALTER TABLE "library_entries" ADD CONSTRAINT "library_entries_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "library_entries" ADD CONSTRAINT "library_entries_work_id_works_id_fk" FOREIGN KEY ("work_id") REFERENCES "public"."works"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "works" ADD CONSTRAINT "works_author_id_authors_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."authors"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "works" ADD CONSTRAINT "works_author_id_authors_user_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."authors"("user_id") ON DELETE no action ON UPDATE no action;

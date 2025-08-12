@@ -12,16 +12,22 @@ import {
 import { SidebarMenuButton } from "../../ui/sidebar";
 import { CommandIcon } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
-import { db } from "@/db";
-import { userQuery } from "@/lib/queries";
+import { userQuery, userWorksQuery } from "@/lib/queries";
 import { Work } from "@/db/schema";
-import { client } from "@/lib/orpc.client";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import Spinner from "@/components/ui/spinner";
 
 export function DashboardCommandMenu() {
   const [open, setOpen] = React.useState(false);
   const [works, setWorks] = React.useState<Work[]>([]);
+  const [isRateLimited, setIsRateLimited] = React.useState(false);
   const { isPending, data } = userQuery();
+  const {
+    isPending: isWorksPending,
+    data: worksData,
+    refetch: refetchWorks,
+  } = userWorksQuery();
   const router = useRouter();
 
   React.useEffect(() => {
@@ -31,20 +37,20 @@ export function DashboardCommandMenu() {
         setOpen((open) => !open);
       }
     };
+
     document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
+
+    return () => {
+      document.removeEventListener("keydown", down);
+    };
   }, []);
 
-  const getWorks = async (userId: string) => {
-    const works = await client.work.getAllByUserId({ userId });
-    setWorks(works);
-  };
-
   useEffect(() => {
-    if (!isPending && data?.id) {
-      getWorks(data.id);
+    if (!isPending && data?.id && !isWorksPending) {
+      console.log(worksData);
+      setWorks(worksData || []);
     }
-  }, [isPending]);
+  }, [isPending, isWorksPending]);
 
   const routes = ROUTES.dashboard;
 
@@ -103,6 +109,28 @@ export function DashboardCommandMenu() {
             </CommandGroup>
           )}
         </CommandList>
+        <div className="py-2 px-4 border-t flex justify-between items-center">
+          <span className="text-xs text-muted-foreground">
+            Press <kbd className="bg-muted text-muted-foreground">Ctrl</kbd> +{" "}
+            <kbd className="bg-muted text-muted-foreground">K</kbd> to open or
+            close this menu.
+          </span>
+          <Button
+            disabled={isWorksPending || isRateLimited}
+            onClick={async () => {
+              setIsRateLimited(true);
+              await refetchWorks();
+              setWorks(worksData || []);
+              setTimeout(() => setIsRateLimited(false), 2000);
+            }}
+            size={"sm"}
+            variant={"outline"}
+            className="transition-all"
+          >
+            Refresh Works
+            {isRateLimited && <Spinner className="size-4" />}
+          </Button>
+        </div>
       </CommandDialog>
 
       <SidebarMenuButton onClick={() => setOpen(true)} size="lg" asChild>

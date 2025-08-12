@@ -35,7 +35,8 @@ export const ROUTES = {
       root: "/dashboard/works",
       new: "/dashboard/works/new",
       bySlug: (slug: string) => `/dashboard/works/${slug}`,
-      bySlugNew: (slug: string) => `/dashboard/works/${slug}/new`,
+      bySlugNewChapter: (slug: string) =>
+        `/dashboard/works/${slug}/chapter/new`,
     },
   },
 } as const;

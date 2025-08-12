@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { WorkStatus, WorkType } from "@/db/schema";
-import { userQuery } from "@/lib/queries";
+import { authorQuery, userQuery, userWorksQuery } from "@/lib/queries";
 import { useId } from "react";
 
 import { CheckIcon, ChevronDown, XIcon } from "lucide-react";
@@ -51,7 +51,9 @@ import { client } from "@/lib/orpc.client";
 import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
-import { fileToBase64 } from "@/lib/utils";
+import { fileToBase64, transformSlug } from "@/lib/utils";
+import { toast } from "sonner";
+import { getQueryClient } from "@/lib/query-client";
 
 // Utility function to convert title to slug
 function titleToSlug(title: string): string {
@@ -99,7 +101,7 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
     if (selectedValues.includes(value)) {
       setValue(
         "tags",
-        selectedValues.filter((v: string) => v !== value),
+        selectedValues.filter((v: string) => v !== value)
       );
     } else {
       setValue("tags", [...selectedValues, value]);
@@ -109,7 +111,7 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
   const removeSelection = (value: string) => {
     setValue(
       "tags",
-      selectedValues.filter((v: string) => v !== value),
+      selectedValues.filter((v: string) => v !== value)
     );
   };
 
@@ -240,6 +242,14 @@ export function CreateWorkForm() {
   const { isPending: _isPending, data: userData } = userQuery();
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const queryClient = getQueryClient();
+
+  const invalidateWorks = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["userWorks"],
+    });
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -313,6 +323,8 @@ export function CreateWorkForm() {
       return;
     }
 
+    setLoading(true);
+
     const groupedTags: Record<string, string[]> = {};
 
     if (data.tags) {
@@ -336,19 +348,30 @@ export function CreateWorkForm() {
       }
     }
 
-    let coverBase64: string | null = null;
+    let cover: Buffer | null = null;
     if (data.cover instanceof File) {
-      coverBase64 = await fileToBase64(data.cover);
+      const arrBuffer = await data.cover.arrayBuffer();
+      cover = Buffer.from(arrBuffer);
     }
 
-    await client.work.create({
-      ...data,
-      authorId: userData!.id,
-      slug: data.slug,
-      id: nanoid(16),
-      tags: data.tags ? groupedTags : null,
-      coverImageBase64: coverBase64,
-    });
+    await client.work
+      .create({
+        ...data,
+        authorId: userData.id,
+        slug: data.slug,
+        id: nanoid(),
+        tags: data.tags ? groupedTags : null,
+        cover,
+      })
+      .catch((error) => {
+        console.error("Error creating work:", error);
+        toast.error("Failed to create work. Please try again.");
+      });
+    invalidateWorks();
+    router.push(
+      ROUTES.dashboard.works.bySlug(transformSlug(data.slug, userData.id))
+    );
+    setLoading(false);
   }
   const isPending = _isPending;
   return (
@@ -368,7 +391,7 @@ export function CreateWorkForm() {
                   <Input
                     placeholder="e.g: Time Dilation"
                     type={"text"}
-                    disabled={isPending}
+                    disabled={isPending || loading}
                     autoFocus
                     value={field.value}
                     onChange={(e) => {
@@ -392,7 +415,7 @@ export function CreateWorkForm() {
                     placeholder="auto-generated from title"
                     type={"text"}
                     value={field.value}
-                    disabled={isPending}
+                    disabled={isPending || loading}
                     onChange={(e) => {
                       const val = e.target.value;
                       field.onChange(val);
@@ -422,7 +445,7 @@ export function CreateWorkForm() {
                 <FormControl>
                   <Textarea
                     {...field}
-                    disabled={isPending}
+                    disabled={isPending || loading}
                     placeholder="The sky was blue, but the sun was orange..."
                     className="resize-none"
                   />
@@ -447,7 +470,7 @@ export function CreateWorkForm() {
                 <FormItem className="w-full p-2 lg:px-4">
                   <FormLabel>Type*</FormLabel>
                   <Select
-                    disabled={isPending}
+                    disabled={isPending || loading}
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
@@ -482,7 +505,7 @@ export function CreateWorkForm() {
                 <FormItem className="w-full p-2 lg:px-4">
                   <FormLabel>Initial Status*</FormLabel>
                   <Select
-                    disabled={isPending}
+                    disabled={isPending || loading}
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
@@ -513,7 +536,7 @@ export function CreateWorkForm() {
                   <FormLabel>Cover Image</FormLabel>
                   <FormControl>
                     <Input
-                      disabled={isPending}
+                      disabled={isPending || loading}
                       type="file"
                       accept="image/*"
                       className=""
@@ -537,7 +560,7 @@ export function CreateWorkForm() {
             name="tags"
             render={() => (
               <FormItem className="w-full p-2 lg:px-4">
-                <CustomTagsSelect isDisabled={isPending} />
+                <CustomTagsSelect isDisabled={isPending || loading} />
                 <FormMessage />
               </FormItem>
             )}
@@ -547,7 +570,7 @@ export function CreateWorkForm() {
           </div>
           <div className="flex justify-end grow items-center w-full pt-3 px-2 lg:px-4">
             <Button
-              disabled={isPending}
+              disabled={isPending || loading}
               className="rounded-lg w-full"
               size="sm"
             >

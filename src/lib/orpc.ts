@@ -3,7 +3,14 @@ import * as z from "zod";
 import { auth, Session } from "./auth";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
-import { workInsertSchema, works } from "@/db/schema";
+import {
+  authorInsertSchema,
+  authors,
+  workInsertSchema,
+  works,
+} from "@/db/schema";
+import { transformSlug } from "./utils";
+import { dataTagErrorSymbol } from "@tanstack/react-query";
 
 const authenticated = os
   .$context<{ session: Session | null }>()
@@ -25,7 +32,7 @@ export const listPlanet = os
     z.object({
       limit: z.number().int().min(1).max(100).optional(),
       cursor: z.number().int().min(0).default(0),
-    }),
+    })
   )
   .handler(async () => {
     // your list code here
@@ -68,11 +75,11 @@ export const getWorkBySlug = authenticated
     }
     return work;
   });
-export const getAllWorksByUserId = authenticated
-  .input(z.object({ userId: z.string() }))
+export const getAllWorksByAuthorId = authenticated
+  .input(z.object({ authorId: z.string() }))
   .handler(async ({ input }) => {
     const works = await db.query.works.findMany({
-      where: (work, { eq }) => eq(work.authorId, input.userId),
+      where: (work, { eq }) => eq(work.authorId, input.authorId),
       orderBy: (work, { desc }) => desc(work.createdAt),
     });
     return works;
@@ -81,18 +88,64 @@ export const getAllWorksByUserId = authenticated
 export const createWork = authenticated
   .input(workInsertSchema)
   .handler(async ({ input, context }) => {
-    const user = await db.query.user.findFirst({
-      where: (user, { eq }) => eq(user.id, context.session.user.id),
-    });
-    if (!user) return null;
+    if (!context.session.user) return null;
     try {
       await db.insert(works).values({
         ...input,
-        slug: `${input.slug}-${nanoid()}`,
+        slug: transformSlug(input.slug, context.session.user.id),
       });
     } catch (error) {
       console.error("Error creating work:", error);
       return null;
+    }
+  });
+
+export const createAuthor = authenticated
+  .input(authorInsertSchema)
+  .handler(async ({ input, context }) => {
+    const user = context.session.user;
+    if (!user) return null;
+
+    try {
+      const author = await db.insert(authors).values({
+        ...input,
+        userId: user.id,
+      });
+      return author;
+    } catch (error) {
+      console.error("Error creating author:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
+export const updateAuthor = authenticated
+  .input(authorInsertSchema.partial())
+  .handler(async ({ input, context }) => {
+    const user = context.session.user;
+    if (!user) return null;
+
+    try {
+      const author = await db.update(authors).set({
+        ...input,
+        userId: user.id,
+      });
+      return author;
+    } catch (error) {
+      console.error("Error updating author:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
+export const getAuthorByUserId = authenticated
+  .input(z.object({ userId: z.string() }))
+  .handler(async ({ input }) => {
+    const author = await db.query.authors.findFirst({
+      where: (author, { eq }) => eq(author.userId, input.userId),
+    });
+    if (!author) {
+      throw new ORPCError("NOT_FOUND");
+    } else {
+      return author;
     }
   });
 
@@ -105,9 +158,14 @@ export const router = {
   user: {
     get: getUser,
   },
+  author: {
+    create: createAuthor,
+    update: updateAuthor,
+    getByUserId: getAuthorByUserId,
+  },
   work: {
     getBySlug: getWorkBySlug,
-    getAllByUserId: getAllWorksByUserId,
+    getAllByAuthorId: getAllWorksByAuthorId,
     create: createWork,
   },
 };

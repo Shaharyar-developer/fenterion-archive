@@ -2,9 +2,12 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { oklch, formatHex } from "culori";
 import { createAuthClient } from "better-auth/react";
+import { inferAdditionalFields } from "better-auth/client/plugins";
+import type { auth } from "./auth";
 
-export const authClient = createAuthClient();
-
+export const authClient = createAuthClient({
+  plugins: [inferAdditionalFields<typeof auth>()],
+});
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -44,3 +47,6 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
+export function transformSlug(slug: string, userId: string): string {
+  return `${slug}-${userId}`;
+}

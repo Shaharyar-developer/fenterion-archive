@@ -34,6 +34,7 @@ export const auth = betterAuth({
       enabled: true,
       async sendDeleteAccountVerification({ url, user }, request) {},
     },
+    additionalFields: {},
   },
   plugins: [username()],
 });

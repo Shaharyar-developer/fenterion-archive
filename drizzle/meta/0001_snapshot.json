@@ -1,6 +1,6 @@
 {
-  "id": "037ab4ae-88b2-4888-88a5-6b8b3fad2bcc",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "aae710a3-571b-468e-a1f3-a0a21bcfdd1c",
+  "prevId": "037ab4ae-88b2-4888-88a5-6b8b3fad2bcc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -588,9 +588,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "cover_image_base64": {
-          "name": "cover_image_base64",
-          "type": "text",
+        "cover": {
+          "name": "cover",
+          "type": "bytea",
           "primaryKey": false,
           "notNull": false
         },

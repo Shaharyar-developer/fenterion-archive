@@ -24,3 +24,46 @@ export const userQuery = () => {
     },
   });
 };
+
+export const authorQuery = () => {
+  return useQuery({
+    queryKey: ["author"],
+    queryFn: async () => {
+      try {
+        const session = await authClient.getSession();
+        if (!session || !session.data?.user) {
+          return null;
+        }
+        const userId = session.data?.user.id;
+        if (!userId) {
+          return null;
+        }
+        const user = await client.author.getByUserId({ userId });
+        return user || null;
+      } catch (error) {
+        return null;
+      }
+    },
+  });
+};
+
+export const userWorksQuery = () => {
+  return useQuery({
+    queryKey: ["userWorks"],
+    queryFn: async () => {
+      const session = await authClient.getSession();
+      if (!session || !session.data?.user) {
+        return [];
+      }
+      const userId = session.data?.user.id;
+      if (!userId) {
+        return [];
+      }
+
+      const works = await client.work.getAllByAuthorId({
+        authorId: userId,
+      });
+      return works || [];
+    },
+  });
+};

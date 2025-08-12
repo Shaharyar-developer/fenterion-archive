@@ -8,7 +8,18 @@ import {
   boolean,
   jsonb,
   pgEnum,
+  customType,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{
+  data: Buffer;
+  driverData: Buffer;
+  default: false;
+}>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export function enumToPgEnum<T extends Record<string, unknown>>(
   myEnum: T,
@@ -117,10 +128,11 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date()),
 });
 
+
 // AUTHORS — only those who can publish
 export const authors = pgTable("authors", {
-  id: text("id").primaryKey(), // UUID
   userId: text("user_id")
+    .primaryKey()
     .references(() => user.id)
     .notNull()
     .unique(),
@@ -129,17 +141,21 @@ export const authors = pgTable("authors", {
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 });
 
+export type Author = typeof authors.$inferSelect;
+export type AuthorInsert = typeof authors.$inferInsert;
+export const authorInsertSchema = createInsertSchema(authors);
+
 // WORKS (unified table for all content types)
 export const works = pgTable("works", {
   id: text("id").primaryKey(), // UUID
   authorId: text("author_id")
-    .references(() => authors.id)
+    .references(() => authors.userId)
     .notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 255 }).notNull().unique(),
   description: text("description"),
   content: text("content"),
-  coverImageBase64: text("cover_image_base64"),
+  cover: bytea("cover").$type<Buffer>(),
   type: workTypeEnum("type").default(WorkType.STORY).notNull(),
   status: workStatusEnum("status").default(WorkStatus.DRAFT).notNull(),
   wordCount: integer("word_count"),
@@ -147,6 +163,7 @@ export const works = pgTable("works", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
 
 export type Work = typeof works.$inferSelect;
 export type WorkInsert = typeof works.$inferInsert;
