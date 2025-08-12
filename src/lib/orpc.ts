@@ -1,6 +1,7 @@
 import { ORPCError, os } from "@orpc/server";
 import * as z from "zod";
-import { Session } from "./auth";
+import { auth, Session } from "./auth";
+import { db } from "@/db";
 
 const authenticated = os
   .$context<{ session: Session | null }>()
@@ -42,11 +43,50 @@ export const createPlanet = authenticated
     return { id: 1, name: "name" };
   });
 
+export const getUser = authenticated
+  .input(z.string())
+  .handler(async ({ input, context }) => {
+    const user = await db.query.user.findFirst({
+      where: (user, { eq }) => eq(user.id, input),
+    });
+    if (!user) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return user;
+  });
+
+export const getWorkBySlug = authenticated
+  .input(z.object({ slug: z.string() }))
+  .handler(async ({ input }) => {
+    const work = await db.query.works.findFirst({
+      where: (work, { eq }) => eq(work.slug, input.slug),
+    });
+    if (!work) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return work;
+  });
+export const getAllWorksByUserId = authenticated
+  .input(z.object({ userId: z.string() }))
+  .handler(async ({ input }) => {
+    const works = await db.query.works.findMany({
+      where: (work, { eq }) => eq(work.authorId, input.userId),
+      orderBy: (work, { desc }) => desc(work.createdAt),
+    });
+    return works;
+  });
 
 export const router = {
   planet: {
     list: listPlanet,
     find: findPlanet,
     create: createPlanet,
+  },
+  user: {
+    get: getUser,
+  },
+  work: {
+    getBySlug: getWorkBySlug,
+    getAllByUserId: getAllWorksByUserId,
   },
 };

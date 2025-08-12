@@ -1,6 +1,5 @@
 import {
   pgTable,
-  serial,
   varchar,
   text,
   integer,
@@ -15,29 +14,29 @@ export function enumToPgEnum<T extends Record<string, unknown>>(
 ): [T[keyof T], ...T[keyof T][]] {
   return Object.values(myEnum).map((value) => `${value}`) as [
     T[keyof T],
-    ...T[keyof T][]
+    ...T[keyof T][],
   ];
 }
 
-enum UserRole {
+export enum UserRole {
   READER = "reader",
   AUTHOR = "author",
   ADMIN = "admin",
 }
 
-enum WorkStatus {
+export enum WorkStatus {
   DRAFT = "draft",
   PUBLISHED = "published",
   ARCHIVED = "archived",
 }
 
-enum ChapterStatus {
+export enum ChapterStatus {
   DRAFT = "draft",
   PUBLISHED = "published",
   ARCHIVED = "archived",
 }
 
-enum WorkType {
+export enum WorkType {
   STORY = "story",
   SHORT_STORY = "short_story",
   POEM = "poem",
@@ -52,25 +51,29 @@ export const chapterStatusEnum = pgEnum(
   enumToPgEnum(ChapterStatus)
 );
 
+// USERS
 export const user = pgTable("user", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey(), // UUID/ULID
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified")
     .$defaultFn(() => false)
     .notNull(),
   image: text("image"),
-
   avatarUrl: text("avatar_url"),
   role: userRoleEnum("role").default(UserRole.READER).notNull(),
   displayUsername: text("display_username").unique(),
   createdAt: timestamp("created_at")
-    .$defaultFn(() => /* @__PURE__ */ new Date())
+    .$defaultFn(() => new Date())
     .notNull(),
   updatedAt: timestamp("updated_at")
-    .$defaultFn(() => /* @__PURE__ */ new Date())
+    .$defaultFn(() => new Date())
     .notNull(),
 });
+
+export type User = typeof user.$inferSelect;
+
+// SESSION
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at").notNull(),
@@ -84,6 +87,7 @@ export const session = pgTable("session", {
     .references(() => user.id, { onDelete: "cascade" }),
 });
 
+// ACCOUNT
 export const account = pgTable("account", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull(),
@@ -102,22 +106,19 @@ export const account = pgTable("account", {
   updatedAt: timestamp("updated_at").notNull(),
 });
 
+// VERIFICATION
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").$defaultFn(
-    () => /* @__PURE__ */ new Date()
-  ),
-  updatedAt: timestamp("updated_at").$defaultFn(
-    () => /* @__PURE__ */ new Date()
-  ),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date()),
 });
 
 // AUTHORS — only those who can publish
 export const authors = pgTable("authors", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey(), // UUID
   userId: text("user_id")
     .references(() => user.id)
     .notNull()
@@ -129,8 +130,8 @@ export const authors = pgTable("authors", {
 
 // WORKS (unified table for all content types)
 export const works = pgTable("works", {
-  id: serial("id").primaryKey(),
-  authorId: integer("author_id")
+  id: text("id").primaryKey(), // UUID
+  authorId: text("author_id")
     .references(() => authors.id)
     .notNull(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -140,22 +141,24 @@ export const works = pgTable("works", {
   coverImageBase64: text("cover_image_base64"), // small covers only
   type: workTypeEnum("type").default(WorkType.STORY).notNull(),
   status: workStatusEnum("status").default(WorkStatus.DRAFT).notNull(),
-  wordCount: integer("word_count"), // useful for all work types
-  tags: jsonb("tags"), // flexible tagging system for genres, themes, etc.
+  wordCount: integer("word_count"),
+  tags: jsonb("tags"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// CHAPTERS (only for multi-chapter works like stories)
+export type Work = typeof works.$inferSelect;
+
+// CHAPTERS
 export const chapters = pgTable("chapters", {
-  id: serial("id").primaryKey(),
-  workId: integer("work_id")
+  id: text("id").primaryKey(), // UUID
+  workId: text("work_id")
     .references(() => works.id)
     .notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 255 }).notNull(),
   content: text("content").notNull(),
-  position: integer("position").notNull(), // chapter order
+  position: integer("position").notNull(),
   status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
   published: boolean("published").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -164,11 +167,11 @@ export const chapters = pgTable("chapters", {
 
 // LIBRARY / FAVORITES
 export const libraryEntries = pgTable("library_entries", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey(), // UUID
   userId: text("user_id")
     .references(() => user.id)
     .notNull(),
-  workId: integer("work_id")
+  workId: text("work_id")
     .references(() => works.id)
     .notNull(),
   addedAt: timestamp("added_at").defaultNow().notNull(),

@@ -29,6 +29,15 @@ export const ROUTES = {
       rest: "/api/rpc/[...rest]",
     },
   },
+  dashboard: {
+    root: "/dashboard",
+    works: {
+      root: "/dashboard/works",
+      new: "/dashboard/works/new",
+      bySlug: (slug: string) => `/dashboard/works/${slug}`,
+      bySlugNew: (slug: string) => `/dashboard/works/${slug}/new`,
+    },
+  },
 } as const;
 
 export type RouteFunction = (...args: unknown[]) => string;

@@ -65,15 +65,21 @@ export function SignUpForm() {
     // Exclude confirmPassword from the values sent to the server
     const { confirmPassword, ...submitValues } = values;
     try {
-      await authClient.signUp
-        .email({
-          ...submitValues,
-          callbackURL: ROUTES.home,
-        })
-        .catch((error) => {
-          toast.error(error.message);
-        });
-    } catch (error) {}
+      const req = await authClient.signUp.email({
+        ...submitValues,
+        callbackURL: ROUTES.home,
+      });
+
+      if (req?.error) {
+        toast.error(req.error.message);
+      } else {
+        toast.info(
+          "Sign up initiated! Please check your email for verification."
+        );
+      }
+    } catch (error) {
+      toast.error("An error occurred during sign up. Please try again.");
+    }
 
     setLoading(false);
   }

@@ -1,5 +1,5 @@
 {
-  "id": "d785a416-ed2e-4a76-b101-4519a6953744",
+  "id": "d133c96f-31cb-44dc-8fdd-ebac20829697",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -115,7 +115,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "text",
           "primaryKey": true,
           "notNull": true
         },
@@ -181,13 +181,13 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "text",
           "primaryKey": true,
           "notNull": true
         },
         "work_id": {
           "name": "work_id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -273,7 +273,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "text",
           "primaryKey": true,
           "notNull": true
         },
@@ -285,7 +285,7 @@
         },
         "work_id": {
           "name": "work_id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -449,18 +449,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "username": {
-          "name": "username",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "displayUsername": {
-          "name": "displayUsername",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "avatar_url": {
           "name": "avatar_url",
           "type": "text",
@@ -474,6 +462,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'reader'"
+        },
+        "display_username": {
+          "name": "display_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -499,11 +493,11 @@
             "email"
           ]
         },
-        "user_username_unique": {
-          "name": "user_username_unique",
+        "user_display_username_unique": {
+          "name": "user_display_username_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "username"
+            "display_username"
           ]
         }
       },
@@ -566,13 +560,13 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "text",
           "primaryKey": true,
           "notNull": true
         },
         "author_id": {
           "name": "author_id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },

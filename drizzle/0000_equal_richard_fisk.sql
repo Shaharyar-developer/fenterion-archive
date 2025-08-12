@@ -19,7 +19,7 @@ CREATE TABLE "account" (
 );
 --> statement-breakpoint
 CREATE TABLE "authors" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"pen_name" varchar(100) NOT NULL,
 	"bio" text,
@@ -28,8 +28,8 @@ CREATE TABLE "authors" (
 );
 --> statement-breakpoint
 CREATE TABLE "chapters" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"work_id" integer NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
+	"work_id" text NOT NULL,
 	"title" varchar(255) NOT NULL,
 	"slug" varchar(255) NOT NULL,
 	"content" text NOT NULL,
@@ -41,9 +41,9 @@ CREATE TABLE "chapters" (
 );
 --> statement-breakpoint
 CREATE TABLE "library_entries" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
-	"work_id" integer NOT NULL,
+	"work_id" text NOT NULL,
 	"added_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -65,14 +65,13 @@ CREATE TABLE "user" (
 	"email" text NOT NULL,
 	"email_verified" boolean NOT NULL,
 	"image" text,
-	"username" text,
-	"displayUsername" text,
 	"avatar_url" text,
 	"role" "user_role" DEFAULT 'reader' NOT NULL,
+	"display_username" text,
 	"created_at" timestamp NOT NULL,
 	"updated_at" timestamp NOT NULL,
 	CONSTRAINT "user_email_unique" UNIQUE("email"),
-	CONSTRAINT "user_username_unique" UNIQUE("username")
+	CONSTRAINT "user_display_username_unique" UNIQUE("display_username")
 );
 --> statement-breakpoint
 CREATE TABLE "verification" (
@@ -85,8 +84,8 @@ CREATE TABLE "verification" (
 );
 --> statement-breakpoint
 CREATE TABLE "works" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"author_id" integer NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
+	"author_id" text NOT NULL,
 	"title" varchar(255) NOT NULL,
 	"slug" varchar(255) NOT NULL,
 	"description" text,

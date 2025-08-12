@@ -6,7 +6,7 @@ import siteconfig from "@/constants/siteconfig";
 import { ThemeProvider } from "@/providers/theme";
 import QueryProviders from "@/providers/query";
 import { Toaster } from "@/components/ui/sonner";
-import { Navbar } from "@/components/blocks/navbar";
+import { Navbar } from "@/components/blocks/app-navbar";
 
 const firaSans = Fira_Sans({
   variable: "--font-fira-sans",

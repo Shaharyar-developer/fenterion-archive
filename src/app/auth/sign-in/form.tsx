@@ -47,7 +47,7 @@ export function SignInForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     toast.info("Signing in!");
-    await authClient.signIn
+    const req = await authClient.signIn
       .email({
         ...values,
         rememberMe: values.checkbox,
@@ -56,6 +56,12 @@ export function SignInForm() {
       .catch((error) => {
         toast.error(error.message);
       });
+    if (req?.error) {
+      toast.error(
+        req.error.message +
+          " Please ensure that an account exists with this email and password."
+      );
+    }
     setLoading(false);
   }
 

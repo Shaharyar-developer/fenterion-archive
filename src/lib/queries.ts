@@ -1,10 +1,26 @@
-import { queryOptions } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { authClient } from "./utils";
+import { db } from "@/db";
+import { client } from "./orpc.client";
 
-export const pokemonOptions = queryOptions({
-  queryKey: ["pokemon"],
-  queryFn: async () => {
-    const response = await fetch("https://pokeapi.co/api/v2/pokemon/25");
-
-    return response.json();
-  },
-});
+export const userQuery = () => {
+  return useQuery({
+    queryKey: ["user"],
+    queryFn: async () => {
+      try {
+        const session = await authClient.getSession();
+        if (!session || !session.data?.user) {
+          return null;
+        }
+        const userId = session.data?.user.id;
+        if (!userId) {
+          return null;
+        }
+        const user = await client.user.get(userId);
+        return user || null;
+      } catch (error) {
+        return null;
+      }
+    },
+  });
+};

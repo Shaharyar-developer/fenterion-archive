@@ -3,14 +3,15 @@ import { router } from "@/lib/orpc";
 import { RPCHandler } from "@orpc/server/fetch";
 import { headers } from "next/headers";
 
-const session: Session | null = await auth.api.getSession({
-  headers: await headers(),
-});
-const handler = new RPCHandler(router);
 
 async function handleRequest(request: Request) {
+  const session: Session | null = await auth.api.getSession({
+    headers: await headers(),
+  });
+  const handler = new RPCHandler(router);
+
   const { response } = await handler.handle(request, {
-    prefix: "/rpc",
+    prefix: "/api/rpc",
     context: {
       session: session,
     },
