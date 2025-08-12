@@ -138,11 +138,11 @@ export const works = pgTable("works", {
   slug: varchar("slug", { length: 255 }).notNull().unique(),
   description: text("description"),
   content: text("content"),
-  coverImageBase64: text("cover_image_base64"), // small covers only
+  coverImageBase64: text("cover_image_base64"),
   type: workTypeEnum("type").default(WorkType.STORY).notNull(),
   status: workStatusEnum("status").default(WorkStatus.DRAFT).notNull(),
   wordCount: integer("word_count"),
-  tags: jsonb("tags"),
+  tags: jsonb("tags").$type<Record<string, string[]>>().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
