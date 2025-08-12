@@ -35,3 +35,12 @@ export function getInitials(name: string): string {
   }
   return parts[0].charAt(0).toUpperCase() + parts[1].charAt(0).toUpperCase();
 }
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+

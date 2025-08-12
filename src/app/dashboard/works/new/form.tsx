@@ -47,6 +47,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { TAGS } from "@/constants/tags";
 import { useWorkDraft } from "@/hooks/use-work-draft";
+import { client } from "@/lib/orpc.client";
+import { nanoid } from "nanoid";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
+import { fileToBase64 } from "@/lib/utils";
 
 // Utility function to convert title to slug
 function titleToSlug(title: string): string {
@@ -94,7 +99,7 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
     if (selectedValues.includes(value)) {
       setValue(
         "tags",
-        selectedValues.filter((v: string) => v !== value)
+        selectedValues.filter((v: string) => v !== value),
       );
     } else {
       setValue("tags", [...selectedValues, value]);
@@ -104,7 +109,7 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
   const removeSelection = (value: string) => {
     setValue(
       "tags",
-      selectedValues.filter((v: string) => v !== value)
+      selectedValues.filter((v: string) => v !== value),
     );
   };
 
@@ -219,8 +224,8 @@ export const formSchema = z.object({
   cover: z
     .custom<File>()
     .optional()
-    .refine((file) => !file || file.size <= 5 * 1024 * 1024, {
-      error: "Cover image must be less than 5MB",
+    .refine((file) => !file || file.size <= 2.5 * 1024 * 1024, {
+      error: "Cover image must be less than 2.5MB",
     })
     .refine((file) => !file || file.type.startsWith("image/"), {
       error: "Cover image must be an image file",
@@ -232,8 +237,9 @@ export type WorkDraftData = z.infer<typeof formSchema>;
 
 export function CreateWorkForm() {
   const { setWorkDraft } = useWorkDraft();
-  const { isPending: _isPending } = userQuery();
+  const { isPending: _isPending, data: userData } = userQuery();
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -261,9 +267,6 @@ export function CreateWorkForm() {
       const workType = values.type;
       const allTags = values.tags || [];
 
-      // Debug: raw tags
-      console.log("[DEBUG] Raw tags from form:", allTags);
-
       if (!workType || allTags.length === 0) {
         setWorkDraft({
           ...values,
@@ -286,9 +289,6 @@ export function CreateWorkForm() {
         }
       });
 
-      // Debug: grouped tags before filtering
-      console.log("[DEBUG] Grouped tags before filtering:", groupedTags);
-
       // Only include categories that have tags
       const finalTags: Record<string, string[]> = {};
       if (groupedTags.general.length > 0) {
@@ -297,9 +297,6 @@ export function CreateWorkForm() {
       if (groupedTags[workType].length > 0) {
         finalTags[workType] = groupedTags[workType];
       }
-
-      // Debug: final tags passed to setWorkDraft
-      console.log("[DEBUG] Final tags passed to setWorkDraft:", finalTags);
 
       setWorkDraft({
         ...values,
@@ -310,8 +307,48 @@ export function CreateWorkForm() {
     return () => subscription.unsubscribe();
   }, [form, setWorkDraft]);
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
-    console.log("Form submitted with data:", data);
+  async function onSubmit(data: z.infer<typeof formSchema>) {
+    if (!userData?.id || typeof userData === "undefined") {
+      router.push(ROUTES.auth.signIn);
+      return;
+    }
+
+    const groupedTags: Record<string, string[]> = {};
+
+    if (data.tags) {
+      // Initialize keys
+      groupedTags.general = [];
+      Object.values(WorkType).forEach((type) => {
+        groupedTags[type] = [];
+      });
+
+      // Categorize tags
+      for (const tag of data.tags) {
+        if (TAGS.general.includes(tag)) {
+          groupedTags.general.push(tag);
+        } else {
+          for (const type of Object.values(WorkType)) {
+            if (TAGS[type].includes(tag)) {
+              groupedTags[type].push(tag);
+            }
+          }
+        }
+      }
+    }
+
+    let coverBase64: string | null = null;
+    if (data.cover instanceof File) {
+      coverBase64 = await fileToBase64(data.cover);
+    }
+
+    await client.work.create({
+      ...data,
+      authorId: userData!.id,
+      slug: data.slug,
+      id: nanoid(16),
+      tags: data.tags ? groupedTags : null,
+      coverImageBase64: coverBase64,
+    });
   }
   const isPending = _isPending;
   return (

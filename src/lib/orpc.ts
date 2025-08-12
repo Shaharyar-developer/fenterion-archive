@@ -1,7 +1,9 @@
 import { ORPCError, os } from "@orpc/server";
 import * as z from "zod";
 import { auth, Session } from "./auth";
+import { nanoid } from "nanoid";
 import { db } from "@/db";
+import { workInsertSchema, works } from "@/db/schema";
 
 const authenticated = os
   .$context<{ session: Session | null }>()
@@ -23,7 +25,7 @@ export const listPlanet = os
     z.object({
       limit: z.number().int().min(1).max(100).optional(),
       cursor: z.number().int().min(0).default(0),
-    })
+    }),
   )
   .handler(async () => {
     // your list code here
@@ -76,6 +78,24 @@ export const getAllWorksByUserId = authenticated
     return works;
   });
 
+export const createWork = authenticated
+  .input(workInsertSchema)
+  .handler(async ({ input, context }) => {
+    const user = await db.query.user.findFirst({
+      where: (user, { eq }) => eq(user.id, context.session.user.id),
+    });
+    if (!user) return null;
+    try {
+      await db.insert(works).values({
+        ...input,
+        slug: `${input.slug}-${nanoid()}`,
+      });
+    } catch (error) {
+      console.error("Error creating work:", error);
+      return null;
+    }
+  });
+
 export const router = {
   planet: {
     list: listPlanet,
@@ -88,5 +108,6 @@ export const router = {
   work: {
     getBySlug: getWorkBySlug,
     getAllByUserId: getAllWorksByUserId,
+    create: createWork,
   },
 };

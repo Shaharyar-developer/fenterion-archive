@@ -1,3 +1,4 @@
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import {
   pgTable,
   varchar,
@@ -10,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export function enumToPgEnum<T extends Record<string, unknown>>(
-  myEnum: T
+  myEnum: T,
 ): [T[keyof T], ...T[keyof T][]] {
   return Object.values(myEnum).map((value) => `${value}`) as [
     T[keyof T],
@@ -48,7 +49,7 @@ export const workStatusEnum = pgEnum("work_status", enumToPgEnum(WorkStatus));
 export const workTypeEnum = pgEnum("work_type", enumToPgEnum(WorkType));
 export const chapterStatusEnum = pgEnum(
   "chapter_status",
-  enumToPgEnum(ChapterStatus)
+  enumToPgEnum(ChapterStatus),
 );
 
 // USERS
@@ -148,6 +149,8 @@ export const works = pgTable("works", {
 });
 
 export type Work = typeof works.$inferSelect;
+export type WorkInsert = typeof works.$inferInsert;
+export const workInsertSchema = createInsertSchema(works);
 
 // CHAPTERS
 export const chapters = pgTable("chapters", {

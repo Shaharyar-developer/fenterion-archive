@@ -200,13 +200,13 @@ export const WorkPreview = () => {
                   >
                     {t}
                   </Badge>
-                ))
+                )),
               )}
             </div>
           </div>
         )}
 
-        {/* Technical meta (optional developer view) */}
+        {/* Technical meta (developer view) */}
         {process.env.NODE_ENV === "development" && (
           <div className="mt-10 border rounded-md p-4 bg-muted/30">
             <h3 className="text-xs font-semibold mb-2 text-muted-foreground tracking-wide uppercase">
