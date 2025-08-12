@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Command, Command as CommandIcon, Plus } from "lucide-react";
 
 import {
   Sidebar,
@@ -9,9 +8,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { DashboardCommandMenu } from "./command";
 import { Separator } from "../../ui/separator";

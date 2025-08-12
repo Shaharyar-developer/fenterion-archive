@@ -7,6 +7,7 @@ export function useBreadcrumbs() {
   const pathname = usePathname();
   const params = useParams();
   const [crumbs, setCrumbs] = useState<{ label: string; href?: string }[]>([]);
+  const [isPending, setIsPending] = useState(true);
 
   const extractParams = (pattern: string, params: Record<string, string>) => {
     const matches = [...pattern.matchAll(/\[(.+?)\]/g)];
@@ -54,8 +55,9 @@ export function useBreadcrumbs() {
       );
 
       setCrumbs(resolved.filter(Boolean) as any);
+      setIsPending(false);
     })();
   }, [pathname, params]);
 
-  return crumbs;
+  return [isPending, crumbs] as const;
 }

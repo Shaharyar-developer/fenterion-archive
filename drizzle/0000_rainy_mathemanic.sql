@@ -89,7 +89,7 @@ CREATE TABLE "works" (
 	"slug" varchar(255) NOT NULL,
 	"description" text,
 	"content" text,
-	"cover_image_base64" text,
+	"cover" text,
 	"type" "work_type" DEFAULT 'story' NOT NULL,
 	"status" "work_status" DEFAULT 'draft' NOT NULL,
 	"word_count" integer,

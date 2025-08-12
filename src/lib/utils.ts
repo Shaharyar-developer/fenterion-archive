@@ -50,3 +50,29 @@ export function fileToBase64(file: File): Promise<string> {
 export function transformSlug(slug: string, userId: string): string {
   return `${slug}-${userId}`;
 }
+
+export function normalizeSlug(slug: string, userId: string): string {
+  const parts = slug.split("-");
+  if (parts.length > 1 && parts[parts.length - 1] === userId) {
+    return parts.slice(0, -1).join("-");
+  }
+  return slug;
+}
+
+export function extractExtension(filename: string): string {
+  const lastDot = filename.lastIndexOf(".");
+  const lastSep = Math.max(
+    filename.lastIndexOf("/"),
+    filename.lastIndexOf("\\")
+  );
+
+  if (
+    lastDot <= lastSep ||
+    lastDot === -1 ||
+    lastDot === 0 ||
+    lastDot === filename.length - 1
+  ) {
+    return "";
+  }
+  return filename.slice(lastDot + 1);
+}

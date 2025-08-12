@@ -1,5 +1,5 @@
 {
-  "id": "037ab4ae-88b2-4888-88a5-6b8b3fad2bcc",
+  "id": "c6721e32-5033-4d57-b55d-a879a18e691c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -588,8 +588,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "cover_image_base64": {
-          "name": "cover_image_base64",
+        "cover": {
+          "name": "cover",
           "type": "text",
           "primaryKey": false,
           "notNull": false

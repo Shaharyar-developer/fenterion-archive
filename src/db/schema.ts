@@ -12,8 +12,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 const bytea = customType<{
-  data: Buffer;
-  driverData: Buffer;
+  data: Uint8Array;
+  driverData: Uint8Array;
   default: false;
 }>({
   dataType() {
@@ -22,7 +22,7 @@ const bytea = customType<{
 });
 
 export function enumToPgEnum<T extends Record<string, unknown>>(
-  myEnum: T,
+  myEnum: T
 ): [T[keyof T], ...T[keyof T][]] {
   return Object.values(myEnum).map((value) => `${value}`) as [
     T[keyof T],
@@ -60,7 +60,7 @@ export const workStatusEnum = pgEnum("work_status", enumToPgEnum(WorkStatus));
 export const workTypeEnum = pgEnum("work_type", enumToPgEnum(WorkType));
 export const chapterStatusEnum = pgEnum(
   "chapter_status",
-  enumToPgEnum(ChapterStatus),
+  enumToPgEnum(ChapterStatus)
 );
 
 // USERS
@@ -128,7 +128,6 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date()),
 });
 
-
 // AUTHORS — only those who can publish
 export const authors = pgTable("authors", {
   userId: text("user_id")
@@ -155,7 +154,7 @@ export const works = pgTable("works", {
   slug: varchar("slug", { length: 255 }).notNull().unique(),
   description: text("description"),
   content: text("content"),
-  cover: bytea("cover").$type<Buffer>(),
+  coverKey: text("cover_key"),
   type: workTypeEnum("type").default(WorkType.STORY).notNull(),
   status: workStatusEnum("status").default(WorkStatus.DRAFT).notNull(),
   wordCount: integer("word_count"),

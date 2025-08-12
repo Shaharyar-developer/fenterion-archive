@@ -51,9 +51,11 @@ import { client } from "@/lib/orpc.client";
 import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
-import { fileToBase64, transformSlug } from "@/lib/utils";
+import { extractExtension, fileToBase64, transformSlug } from "@/lib/utils";
 import { toast } from "sonner";
 import { getQueryClient } from "@/lib/query-client";
+import { uploadToR2 } from "@/lib/minio";
+import { BUCKET_NAME } from "@/constants/misc";
 
 // Utility function to convert title to slug
 function titleToSlug(title: string): string {
@@ -347,31 +349,52 @@ export function CreateWorkForm() {
         }
       }
     }
+    const coverKey = data.cover
+      ? `covers/${data.slug}-${userData.id}.${extractExtension(
+          data.cover?.name
+        )}`
+      : null;
+    try {
+      if (coverKey && data.cover) {
+        const url = await client.upload.file({
+          bucketName: BUCKET_NAME,
+          objectName: coverKey,
+        });
+        console.log("Uploading cover image to:", url);
+        try {
+          await fetch(url, {
+            method: "PUT",
+            headers: {
+              "Content-Type": data.cover.type,
+            },
+            body: data.cover,
+          });
+        } catch (error) {
+          console.error("Error uploading cover image:", error);
+          toast.error("Failed to upload cover image. Please try again.");
+          return;
+        }
+      }
 
-    let cover: Buffer | null = null;
-    if (data.cover instanceof File) {
-      const arrBuffer = await data.cover.arrayBuffer();
-      cover = Buffer.from(arrBuffer);
-    }
-
-    await client.work
-      .create({
+      await client.work.create({
         ...data,
         authorId: userData.id,
         slug: data.slug,
         id: nanoid(),
         tags: data.tags ? groupedTags : null,
-        cover,
-      })
-      .catch((error) => {
-        console.error("Error creating work:", error);
-        toast.error("Failed to create work. Please try again.");
+        coverKey,
       });
+    } catch (error) {
+      console.error("Error creating work:", error);
+      toast.error("Failed to create work. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+
     invalidateWorks();
     router.push(
       ROUTES.dashboard.works.bySlug(transformSlug(data.slug, userData.id))
     );
-    setLoading(false);
   }
   const isPending = _isPending;
   return (

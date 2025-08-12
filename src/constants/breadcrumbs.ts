@@ -1,4 +1,5 @@
 import { client } from "@/lib/orpc.client";
+import { authClient, normalizeSlug } from "@/lib/utils";
 
 type BreadcrumbConfig = {
   label:
@@ -15,6 +16,11 @@ export const dashboardBreadcrumbs: Record<string, BreadcrumbConfig> = {
     label: async ({ slug }) => {
       if (!slug) return "Unknown Work";
       const res = await client.work.getBySlug({ slug: slug });
+      const session = await authClient.getSession();
+      const userId = session.data?.user.id;
+      if (userId) {
+        return normalizeSlug(res.slug, userId);
+      }
       return res.slug;
     },
     href: ({ slug }) => `/dashboard/works/${slug}`,

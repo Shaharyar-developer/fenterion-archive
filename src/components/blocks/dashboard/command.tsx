@@ -101,7 +101,7 @@ export function DashboardCommandMenu() {
                   value={work.title}
                 >
                   <span className="font-medium">{work.title}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">
+                  <span className="ml-2 text-xs text-muted-foreground truncate">
                     {work.slug}
                   </span>
                 </CommandItem>

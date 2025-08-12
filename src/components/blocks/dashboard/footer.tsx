@@ -1,11 +1,13 @@
+"use client";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { userQuery } from "@/lib/queries";
 import { ROUTES } from "@/lib/routes";
 import { Cog, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { UserProfile } from "../user-profile";
 import Link from "next/link";
+import { useSelectedLayoutSegments } from "next/navigation";
 
 export function DashboardFooter() {
   const { isPending, data } = userQuery();
@@ -31,20 +33,14 @@ export function DashboardFooter() {
 
   return (
     <div className="space-y-2">
-      <SidebarMenuButton
-        size="lg"
-        className="border text-secondary-foreground transition-all dark:hover:bg-secondary/50 cursor-pointer"
-        asChild
+      <SidebarMenuButtonWrapper
+        href={ROUTES.dashboard.works.new}
+        icon={<Plus className="size-4" />}
+        activePath={ROUTES.dashboard.root}
       >
-        <Link href={ROUTES.dashboard.works.new}>
-          <div className="bg-secondary text-secondary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-            <Plus className="size-4" />
-          </div>
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-medium">Create Work</span>
-          </div>
-        </Link>
-      </SidebarMenuButton>
+        Create Work
+      </SidebarMenuButtonWrapper>
+
       <UserProfile user={data}>
         <SidebarMenuButton size="lg" asChild>
           <div>
@@ -61,5 +57,43 @@ export function DashboardFooter() {
         </SidebarMenuButton>
       </UserProfile>
     </div>
+  );
+}
+
+function SidebarMenuButtonWrapper({
+  href,
+  children,
+  icon,
+  activePath,
+}: {
+  href: string;
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  activePath: string;
+}) {
+  const segments = useSelectedLayoutSegments();
+
+  const normalizedActivePath = activePath.replace(/^\/dashboard/, "");
+  const activeSegments = normalizedActivePath.split("/").filter(Boolean);
+  const isActive =
+    (activeSegments.length === 0 && segments.length === 0) ||
+    (segments.length === activeSegments.length &&
+      segments.every((seg, i) => seg === activeSegments[i]));
+
+  return (
+    <SidebarMenuButton
+      size="lg"
+      className={`border text-secondary-foreground transition-all dark:hover:bg-secondary/50 cursor-pointer ${!isActive && "hidden"}`}
+      asChild
+    >
+      <Link href={href}>
+        <div className="bg-secondary text-secondary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+          {icon}
+        </div>
+        <div className="grid flex-1 text-left text-sm leading-tight">
+          <span className="truncate font-medium">{children}</span>
+        </div>
+      </Link>
+    </SidebarMenuButton>
   );
 }

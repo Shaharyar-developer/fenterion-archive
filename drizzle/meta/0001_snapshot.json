@@ -1,6 +1,6 @@
 {
-  "id": "aae710a3-571b-468e-a1f3-a0a21bcfdd1c",
-  "prevId": "037ab4ae-88b2-4888-88a5-6b8b3fad2bcc",
+  "id": "3004f552-5223-4e01-bbc1-ba4777d60832",
+  "prevId": "c6721e32-5033-4d57-b55d-a879a18e691c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -588,9 +588,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "cover": {
-          "name": "cover",
-          "type": "bytea",
+        "cover_key": {
+          "name": "cover_key",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

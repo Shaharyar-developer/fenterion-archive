@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { transformSlug } from "./utils";
 import { dataTagErrorSymbol } from "@tanstack/react-query";
+import { generatePresignedPutUrl, uploadToR2 } from "./minio";
 
 const authenticated = os
   .$context<{ session: Session | null }>()
@@ -149,6 +150,33 @@ export const getAuthorByUserId = authenticated
     }
   });
 
+export const getUploadFileUrl = authenticated
+  .input(
+    z.object({
+      bucketName: z.string(),
+      objectName: z.string(),
+    })
+  )
+  .handler(async ({ input }) => {
+    const { bucketName, objectName } = input;
+    if (!bucketName || !objectName) {
+      throw new ORPCError("BAD_REQUEST");
+    }
+    try {
+      const url = await generatePresignedPutUrl(bucketName, objectName, 60 * 5);
+      console.log(
+        `Generated presigned URL for "${objectName}" in bucket "${bucketName}": ${url}`
+      );
+      return url;
+    } catch (error) {
+      console.error(
+        `Error generating presigned URL for "${objectName}" in bucket "${bucketName}":  `,
+        error
+      );
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
 export const router = {
   planet: {
     list: listPlanet,
@@ -167,5 +195,8 @@ export const router = {
     getBySlug: getWorkBySlug,
     getAllByAuthorId: getAllWorksByAuthorId,
     create: createWork,
+  },
+  upload: {
+    file: getUploadFileUrl,
   },
 };

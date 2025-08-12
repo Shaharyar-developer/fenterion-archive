@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Suspense } from "react";
 
 export default async function Layout({
   children,
@@ -79,13 +80,15 @@ export default async function Layout({
 
   return (
     <div className="[--header-height:calc(--spacing(14))]">
-      <SidebarProvider className="flex flex-col">
-        <SiteHeader />
-        <div className="flex flex-1">
-          <AppSidebar />
-          <SidebarInset>{children}</SidebarInset>
-        </div>
-      </SidebarProvider>
+      <Suspense>
+        <SidebarProvider className="flex flex-col">
+          <SiteHeader />
+          <div className="flex flex-1">
+            <AppSidebar />
+            <SidebarInset>{children}</SidebarInset>
+          </div>
+        </SidebarProvider>
+      </Suspense>
     </div>
   );
 }
