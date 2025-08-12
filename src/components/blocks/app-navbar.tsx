@@ -78,8 +78,8 @@ function NavbarActions({
             <div className="lg:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    More <ChevronDown />
+                  <Button variant={"ghost"} size="sm">
+                    Menu <ChevronDown />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>

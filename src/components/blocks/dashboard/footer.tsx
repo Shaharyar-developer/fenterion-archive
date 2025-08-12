@@ -2,16 +2,9 @@ import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { userQuery } from "@/lib/queries";
 import { ROUTES } from "@/lib/routes";
-import { Cog, Plus, PlusSquare } from "lucide-react";
+import { Cog, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { useState } from "react";
 import { UserProfile } from "../user-profile";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export function DashboardFooter() {
@@ -40,7 +33,7 @@ export function DashboardFooter() {
     <div className="space-y-2">
       <SidebarMenuButton
         size="lg"
-        className="border text-secondary-foreground transition-all hover:bg-secondary/50 cursor-pointer"
+        className="border text-secondary-foreground transition-all dark:hover:bg-secondary/50 cursor-pointer"
         asChild
       >
         <Link href={ROUTES.dashboard.works.new}>
