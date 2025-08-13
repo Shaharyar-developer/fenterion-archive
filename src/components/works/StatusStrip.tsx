@@ -89,6 +89,7 @@ function EditWorkDialog({
   }, [open]);
 
   async function onSubmit(data: any) {
+    if (loading) return;
     setLoading(true);
     try {
       // Regroup tags into object shape for backend
@@ -158,12 +159,14 @@ import { useAsyncAction } from "@/hooks/use-async-action";
 import { WORK_STATUS_META } from "@/constants/work-status-meta";
 import { WorkStatus } from "@/db/schema";
 import { client } from "@/lib/orpc.client";
-import { cn, getCoverKey } from "@/lib/utils";
+import { cn, getCoverKey, sleep } from "@/lib/utils";
 import { ImageIcon, XCircleIcon } from "lucide-react";
 import Image from "next/image";
 import Dropzone from "react-dropzone";
 import { toast } from "sonner";
 import { BUCKET_NAME } from "@/constants/misc";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 
 function CoverChangeDialog({
   open,
@@ -373,6 +376,7 @@ export function StatusStrip({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [coverDialogOpen, setCoverDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const router = useRouter();
 
   const handleDelete = async () => {
     run("Delete", async () => {
@@ -380,6 +384,8 @@ export function StatusStrip({
         id: work.id,
       });
     });
+    await sleep(1000);
+    router.push(ROUTES.dashboard.root);
   };
 
   const handlePublish = async () => {
@@ -392,15 +398,23 @@ export function StatusStrip({
   };
 
   const handleCoverUpload = async (file: File) => {
+    console.log("handleCoverUpload called with file:", file);
     const coverKey = getCoverKey(file, work.slug, work.id);
-    if (!coverKey) return toast.error("Invalid cover file");
+    console.log("Generated coverKey:", coverKey);
+    if (!coverKey) {
+      toast.error("Invalid cover file");
+      console.error("Invalid cover file or coverKey generation failed");
+      return;
+    }
     await run("Upload Cover", async () => {
       const url = await client.upload.file({
         bucketName: BUCKET_NAME,
         objectName: coverKey,
       });
+      console.log("Received upload URL:", url);
       if (!url) {
         toast.error("Failed to get upload URL");
+        console.error("Failed to get upload URL");
         return;
       }
       try {
@@ -411,6 +425,14 @@ export function StatusStrip({
           },
           body: file,
         });
+        console.log("Cover image uploaded successfully");
+
+        await client.work.update({
+          id: work.id,
+          coverKey,
+        });
+        await sleep(1000);
+        window.location.reload();
       } catch (error) {
         console.error("Error uploading cover image:", error);
         toast.error("Failed to upload cover image. Please try again.");

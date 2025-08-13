@@ -94,62 +94,67 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
       selectedValues.filter((v: string) => v !== value)
     );
   };
-  const maxShownItems = 5;
+  const maxShownItems = 2;
   const visibleItems = expanded
     ? selectedValues
     : selectedValues.slice(0, maxShownItems);
   const hiddenCount = selectedValues.length - visibleItems.length;
   return (
-    <div className="w-full space-y-2 overflow-auto">
+    <div className="w-full space-y-2">
       <Label htmlFor={id}>Tags</Label>
-      <Popover modal open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             id={id}
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
             disabled={props.isDisabled}
-            className="w-full justify-between bg-secondary/50"
-            variant={"outline"}
+            className="h-auto w-full justify-between bg-secondary/40"
           >
-            {selectedValues.length > 0 ? (
-              <div>
-                {visibleItems.map((val) => (
-                  <Badge key={val} variant="outline">
-                    {val}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      className="size-4 cursor-pointer inline-flex items-center justify-center"
+            <div className="flex flex-wrap items-center gap-1 pe-2.5">
+              {selectedValues.length > 0 ? (
+                <>
+                  {visibleItems.map((val) => {
+                    const tag = generalTags
+                      .concat(typeTags)
+                      .find((t) => t.value === val);
+                    return tag ? (
+                      <Badge key={val} variant="outline">
+                        {tag.label}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-4"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeSelection(val);
+                          }}
+                          asChild
+                        >
+                          <span>
+                            <XIcon className="size-3" />
+                          </span>
+                        </Button>
+                      </Badge>
+                    ) : null;
+                  })}
+                  {hiddenCount > 0 || expanded ? (
+                    <Badge
+                      variant="outline"
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeSelection(val);
+                        setExpanded((prev) => !prev);
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          removeSelection(val);
-                        }
-                      }}
-                      aria-label={`Remove tag ${val}`}
                     >
-                      <XIcon className="size-3" />
-                    </span>
-                  </Badge>
-                ))}
-                {hiddenCount > 0 || expanded ? (
-                  <Badge
-                    variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpanded((prev) => !prev);
-                    }}
-                  >
-                    {expanded ? "Show Less" : `+${hiddenCount} more`}
-                  </Badge>
-                ) : null}
-              </div>
-            ) : (
-              <span className="text-muted-foreground">Select tags</span>
-            )}
+                      {expanded ? "Show Less" : `+${hiddenCount} more`}
+                    </Badge>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-muted-foreground">Select tags</span>
+              )}
+            </div>
             <ChevronDown
               size={16}
               className="text-muted-foreground/80 shrink-0"
@@ -157,13 +162,10 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
             />
           </Button>
         </PopoverTrigger>
-        <PopoverContent
-          data-remove-scroll-barrier
-          className="w-(--radix-popper-anchor-width) p-0"
-        >
+        <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
           <Command>
             <CommandInput placeholder="Search tags..." />
-            <CommandList className="">
+            <CommandList>
               <CommandEmpty>No tag found.</CommandEmpty>
               {tagGroups.map((group, idx) => (
                 <React.Fragment key={group.label}>
@@ -461,13 +463,13 @@ export const GenericWorkForm = ({
           <Separator />
         </div>
         <div className="flex justify-end grow items-center w-full pt-3 px-2 lg:px-4">
-          <button
-            disabled={isPending || loading || !!titleError}
-            className="rounded-lg w-full bg-primary text-primary-foreground py-2 px-4"
+          <Button
+            disabled={isPending || loading}
+            className="w-full"
             type="submit"
           >
-            {isPending ? "Loading..." : submitLabel}
-          </button>
+            {isPending || loading ? "Loading..." : submitLabel}
+          </Button>
         </div>
       </form>
     </Form>

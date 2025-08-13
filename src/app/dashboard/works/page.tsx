@@ -22,7 +22,7 @@ export default async function DemoPage() {
   const data = await getData(session.user.id);
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto py-10 lg:px-12">
       <DataTable columns={columns} data={data} />
     </div>
   );

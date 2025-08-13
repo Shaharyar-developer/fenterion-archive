@@ -5,16 +5,22 @@ import { Badge } from "@/components/ui/badge";
 import { WORK_STATUS_META } from "@/constants/work-status-meta";
 import { Work, WorkStatus, WorkType } from "@/db/schema";
 import { cn } from "@/lib/utils";
-import { MoreHorizontal, ExternalLink, Tag as TagIcon } from "lucide-react";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+  ExternalLink,
+  Tag as TagIcon,
+  Link2,
+  Cog,
+  Settings,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import * as React from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ROUTES } from "@/lib/routes";
 
 export function TitleCell({ work }: { work: Work }) {
   return (
@@ -76,26 +82,42 @@ export function TagsCell({ tags }: { tags: Record<string, string[]> }) {
   const shown = flat.slice(0, 3);
   const hidden = flat.length - shown.length;
   return (
-    <div className="flex flex-wrap gap-1 max-w-[260px]">
-      {shown.map((t) => (
-        <Badge
-          key={t}
-          variant="outline"
-          className="border-border/50 bg-muted/40 text-[11px] font-normal px-1.5 py-0"
-        >
-          <TagIcon className="size-3" /> {t}
-        </Badge>
-      ))}
-      {hidden > 0 && (
-        <Badge
-          variant="outline"
-          className="border-dashed border-border/50 bg-muted/40 text-[11px] font-normal px-1.5 py-0"
-          title={flat.slice(3).join(", ")}
-        >
-          +{hidden} more
-        </Badge>
-      )}
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <div className="flex flex-wrap gap-1 max-w-[260px] cursor-pointer">
+          {shown.map((t) => (
+            <Badge
+              key={t}
+              variant="outline"
+              className="border-border/50 bg-muted/40 text-[11px] font-normal px-1.5 py-0"
+            >
+              <TagIcon className="size-3" /> {t}
+            </Badge>
+          ))}
+          {hidden > 0 && (
+            <Badge
+              variant="outline"
+              className="border-dashed border-border/50 bg-muted/40 text-[11px] font-normal px-1.5 py-0"
+              title={flat.slice(3).join(", ")}
+            >
+              +{hidden} more
+            </Badge>
+          )}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 max-w-max">
+        <div className="flex flex-col">
+          {flat.map((t, idx) => (
+            <div
+              key={idx}
+              className="border-b last:border-b-0 py-2 px-2 pr-20 text-xs"
+            >
+              {t}
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -120,32 +142,10 @@ export function WordCountCell({ count }: { count: number | null }) {
 
 export function RowActions({ work }: { work: Work }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 hover:bg-accent"
-          aria-label="Row actions"
-        >
-          <MoreHorizontal className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem asChild>
-          <Link href={`/book/${work.id}`}>View</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/dashboard/works/${work.id}`}>Edit</Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>Publish / Unpublish</DropdownMenuItem>
-        <DropdownMenuItem>Archive</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive focus:text-destructive">
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button variant={"ghost"} asChild>
+      <Link href={ROUTES.dashboard.works.bySlug(work.slug)}>
+        <Settings />
+      </Link>
+    </Button>
   );
 }

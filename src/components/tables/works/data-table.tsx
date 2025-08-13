@@ -13,6 +13,17 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import * as React from "react";
+import { useLocalStorage } from "@uidotdev/usehooks";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Rows2Icon, Rows3Icon, Rows4Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +32,16 @@ import {
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
-import { Settings2, X, LayoutList, ListFilter } from "lucide-react";
+import {
+  Settings2,
+  X,
+  LayoutList,
+  ListFilter,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronRight,
+  ChevronLeft,
+} from "lucide-react";
 
 import {
   Table,
@@ -50,9 +70,11 @@ export function DataTable<TData, TValue>({
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [globalFilter, setGlobalFilter] = React.useState("");
-  const [dense, setDense] = React.useState(false);
+  const [density, setDensity] = useLocalStorage<
+    "compact" | "standard" | "comfortable"
+  >("worksTableDensity:v1", "standard");
 
-  // Load persisted state
+  // Load persisted state (except density)
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
@@ -62,23 +84,21 @@ export function DataTable<TData, TValue>({
         if (parsed.columnFilters) setColumnFilters(parsed.columnFilters);
         if (parsed.columnVisibility)
           setColumnVisibility(parsed.columnVisibility);
-        if (parsed.dense) setDense(!!parsed.dense);
       }
     } catch {}
   }, []);
 
-  // Persist state
+  // Persist state (except density, which is handled by useLocalStorage)
   React.useEffect(() => {
     const toStore = JSON.stringify({
       sorting,
       columnFilters,
       columnVisibility,
-      dense,
     });
     try {
       localStorage.setItem(storageKey, toStore);
     } catch {}
-  }, [sorting, columnFilters, columnVisibility, dense]);
+  }, [sorting, columnFilters, columnVisibility]);
 
   const table = useReactTable({
     data,
@@ -139,17 +159,38 @@ export function DataTable<TData, TValue>({
             </Button>
           )}
         </div>
-        <Button
-          variant={dense ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setDense((d) => !d)}
-          className="gap-1"
-        >
-          <LayoutList className="size-4" /> {dense ? "Comfort" : "Dense"}
-        </Button>
+        {/* Density Dropdown */}
+        <Select value={density} onValueChange={(v) => setDensity(v as any)}>
+          <SelectTrigger className="" size="sm" aria-label="Density select">
+            <SelectValue placeholder="Density" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Density</SelectLabel>
+              <SelectItem value="compact">
+                <div className="flex items-center gap-2">
+                  <Rows4Icon className="h-4 w-4" />
+                  Compact
+                </div>
+              </SelectItem>
+              <SelectItem value="standard">
+                <div className="flex items-center gap-2">
+                  <Rows3Icon className="h-4 w-4" />
+                  Standard
+                </div>
+              </SelectItem>
+              <SelectItem value="comfortable">
+                <div className="flex items-center gap-2">
+                  <Rows2Icon className="h-4 w-4" />
+                  Comfortable
+                </div>
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="secondary" size={"sm"} className="gap-1">
               <Settings2 className="size-4" /> Columns
             </Button>
           </DropdownMenuTrigger>
@@ -191,7 +232,15 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
       <div className="overflow-hidden rounded-md border">
-        <Table>
+        <Table
+          className={
+            density === "compact"
+              ? "[&_td]:py-px [&_th]:py-px"
+              : density === "standard"
+                ? "[&_td]:py-1 [&_th]:py-1"
+                : "[&_td]:py-2 [&_th]:py-2"
+          }
+        >
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -216,7 +265,13 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={dense ? "h-8" : "h-10"}
+                  className={
+                    density === "compact"
+                      ? "h-8"
+                      : density === "standard"
+                        ? "h-10"
+                        : "h-12"
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -241,26 +296,24 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      {table.getPageCount() > 1 && (
-        <div className="flex items-center justify-end gap-2 pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Prev
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => table.previousPage()}
+          disabled={!table.getCanPreviousPage()}
+        >
+          <ChevronLeft />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => table.nextPage()}
+          disabled={!table.getCanNextPage()}
+        >
+          <ChevronRight />
+        </Button>
+      </div>
     </div>
   );
 }

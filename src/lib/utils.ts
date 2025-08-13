@@ -90,3 +90,7 @@ export function getCoverKey(
   if (!cover) return null;
   return `covers/${slug}-${id}.${extractExtension(cover.name)}`;
 }
+
+export async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
