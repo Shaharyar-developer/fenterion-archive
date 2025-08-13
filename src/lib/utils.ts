@@ -81,3 +81,12 @@ export function extractExtension(filename: string): string {
 export function getCoverUrl(key: string) {
   return `${env.NEXT_PUBLIC_R2_CDN}/${key}`;
 }
+
+export function getCoverKey(
+  cover: File,
+  slug: string,
+  id: string
+): string | null {
+  if (!cover) return null;
+  return `covers/${slug}-${id}.${extractExtension(cover.name)}`;
+}

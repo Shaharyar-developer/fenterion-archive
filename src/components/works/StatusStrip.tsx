@@ -6,7 +6,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -19,43 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-function DeleteWorkDialog({
-  open,
-  onOpenChange,
-  deleting,
-  onDelete,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  deleting: boolean;
-  onDelete: () => void;
-}) {
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete work?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This action cannot be undone. This will permanently remove the work
-            and its chapters.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={deleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={onDelete}
-          >
-            {deleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
+import { Input } from "../ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -75,7 +38,205 @@ import { WorkOverviewWork } from "./types";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { WORK_STATUS_META } from "@/constants/work-status-meta";
 import { WorkStatus } from "@/db/schema";
-import { cn } from "@/lib/utils";
+import { client } from "@/lib/orpc.client";
+import { cn, getCoverKey } from "@/lib/utils";
+import { ImageIcon, XCircleIcon } from "lucide-react";
+import Image from "next/image";
+import Dropzone from "react-dropzone";
+import { toast } from "sonner";
+import { BUCKET_NAME } from "@/constants/misc";
+
+function CoverChangeDialog({
+  open,
+  onOpenChange,
+  onUpload,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpload: (file: File) => Promise<unknown> | void;
+}) {
+  const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const ImagePreview = ({
+    url,
+    onRemove,
+  }: {
+    url: string;
+    onRemove: () => void;
+  }) => (
+    <div className="relative aspect-square w-32 h-32">
+      <button
+        className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2"
+        onClick={onRemove}
+        type="button"
+        aria-label="Remove image"
+      >
+        <XCircleIcon className="h-5 w-5 fill-primary text-primary-foreground" />
+      </button>
+      <Image
+        src={url}
+        height={500}
+        width={500}
+        alt="Cover preview"
+        className="border border-border h-full w-full rounded-md object-cover"
+      />
+    </div>
+  );
+
+  const handleSave = async () => {
+    if (!coverFile) return;
+    setUploading(true);
+    try {
+      await onUpload(coverFile);
+      onOpenChange(false);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Change Cover</AlertDialogTitle>
+          <AlertDialogDescription>
+            Select a new cover image for this work.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="flex flex-col gap-2 items-center justify-center py-4 w-full">
+          <div className="mt-2 w-full max-w-40 flex justify-center">
+            {coverImage ? (
+              <ImagePreview
+                url={coverImage}
+                onRemove={() => {
+                  setCoverImage(null);
+                  setCoverFile(null);
+                }}
+              />
+            ) : (
+              <Dropzone
+                onDrop={(acceptedFiles) => {
+                  const file = acceptedFiles[0];
+                  if (file) {
+                    const imageUrl = URL.createObjectURL(file);
+                    setCoverImage(imageUrl);
+                    setCoverFile(file);
+                  }
+                }}
+                accept={{
+                  "image/png": [".png", ".jpg", ".jpeg", ".webp"],
+                }}
+                onDropRejected={(props) => {
+                  if (props.length > 1)
+                    return toast.error("Only one file can be uploaded");
+                  if (props[0].file.size > 2.5 * 1024 * 1024)
+                    return toast.error("File size must be less than 2.5MB");
+                }}
+                maxSize={2.5 * 1024 * 1024}
+                maxFiles={1}
+              >
+                {({
+                  getRootProps,
+                  getInputProps,
+                  isDragActive,
+                  isDragAccept,
+                  isDragReject,
+                }) => (
+                  <div
+                    {...getRootProps()}
+                    className={cn(
+                      "border border-dashed flex items-center justify-center aspect-square size-full rounded-md focus:outline-none focus:border-primary",
+                      {
+                        "border-primary bg-secondary":
+                          isDragActive && isDragAccept,
+                        "border-destructive bg-destructive/20":
+                          isDragActive && isDragReject,
+                      }
+                    )}
+                  >
+                    <input {...getInputProps()} id="cover-image" />
+                    <ImageIcon className="h-16 w-16" strokeWidth={1.25} />
+                  </div>
+                )}
+              </Dropzone>
+            )}
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={uploading}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!coverFile || uploading}
+            onClick={handleSave}
+          >
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+            ) : null}
+            Save
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+function DeleteWorkDialog({
+  open,
+  onOpenChange,
+  deleting,
+  onDelete,
+  workTitle,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  deleting: boolean;
+  onDelete: () => void;
+  workTitle: string;
+}) {
+  const [input, setInput] = useState("");
+  const requiredPhrase = `delete ${workTitle}`;
+  const valid = input.trim() === requiredPhrase;
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete work?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently remove the work
+            and its chapters.
+            <br />
+            To confirm, type{" "}
+            <span className="font-mono font-semibold">
+              {requiredPhrase}
+            </span>{" "}
+            below.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <Input
+          autoFocus
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={requiredPhrase}
+          disabled={deleting}
+          className="mt-2"
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={deleting || !valid}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => {
+              if (valid) onDelete();
+            }}
+          >
+            {deleting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export function StatusStrip({
   work,
@@ -91,6 +252,52 @@ export function StatusStrip({
   const publishing = loading === "Publish";
   const deleting = loading === "Delete";
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false);
+
+  const handleDelete = async () => {
+    run("Delete", async () => {
+      await client.work.delete({
+        id: work.id,
+      });
+    });
+  };
+
+  const handlePublish = async () => {
+    run("Publish", async () => {
+      await client.work.update({
+        id: work.id,
+        status: WorkStatus.PUBLISHED,
+      });
+    });
+  };
+
+  const handleCoverUpload = async (file: File) => {
+    const coverKey = getCoverKey(file, work.slug, work.id);
+    if (!coverKey) return toast.error("Invalid cover file");
+    await run("Upload Cover", async () => {
+      const url = await client.upload.file({
+        bucketName: BUCKET_NAME,
+        objectName: coverKey,
+      });
+      if (!url) {
+        toast.error("Failed to get upload URL");
+        return;
+      }
+      try {
+        await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type,
+          },
+          body: file,
+        });
+      } catch (error) {
+        console.error("Error uploading cover image:", error);
+        toast.error("Failed to upload cover image. Please try again.");
+        return;
+      }
+    });
+  };
 
   return (
     <div className="flex flex-wrap gap-2 items-center">
@@ -123,8 +330,6 @@ export function StatusStrip({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuLabel className="text-xs">Actions</DropdownMenuLabel>
-          <DropdownMenuSeparator />
           <Tooltip>
             <TooltipTrigger asChild>
               <div>
@@ -134,10 +339,7 @@ export function StatusStrip({
                   onSelect={(e) => {
                     e.preventDefault();
                     if (!publishable || publishing) return;
-                    run(
-                      "Publish",
-                      async () => await new Promise((r) => setTimeout(r, 800))
-                    );
+                    handlePublish();
                   }}
                 >
                   {publishing ? (
@@ -159,9 +361,13 @@ export function StatusStrip({
               </TooltipContent>
             )}
           </Tooltip>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             className="gap-2"
-            onSelect={(e) => e.preventDefault()}
+            onSelect={(e) => {
+              e.preventDefault();
+              setCoverDialogOpen(true);
+            }}
           >
             <Upload className="h-4 w-4" /> Cover
           </DropdownMenuItem>
@@ -187,6 +393,7 @@ export function StatusStrip({
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
+            variant="destructive"
             className="gap-2 text-destructive focus:text-destructive"
             onSelect={(e) => {
               e.preventDefault();
@@ -206,12 +413,13 @@ export function StatusStrip({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         deleting={deleting}
-        onDelete={() =>
-          run(
-            "Delete",
-            async () => await new Promise((r) => setTimeout(r, 800))
-          )
-        }
+        onDelete={handleDelete}
+        workTitle={work.title}
+      />
+      <CoverChangeDialog
+        open={coverDialogOpen}
+        onOpenChange={setCoverDialogOpen}
+        onUpload={handleCoverUpload}
       />
     </div>
   );

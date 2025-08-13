@@ -12,6 +12,7 @@ import {
 import { transformSlug } from "./utils";
 import { dataTagErrorSymbol } from "@tanstack/react-query";
 import { generatePresignedPutUrl, uploadToR2 } from "./minio";
+import { eq } from "drizzle-orm";
 
 const authenticated = os
   .$context<{ session: Session | null }>()
@@ -20,37 +21,6 @@ const authenticated = os
       throw new ORPCError("UNAUTHORIZED");
     }
     return next({ context: { session: context.session } });
-  });
-
-const PlanetSchema = z.object({
-  id: z.number().int().min(1),
-  name: z.string(),
-  description: z.string().optional(),
-});
-
-export const listPlanet = os
-  .input(
-    z.object({
-      limit: z.number().int().min(1).max(100).optional(),
-      cursor: z.number().int().min(0).default(0),
-    })
-  )
-  .handler(async () => {
-    // your list code here
-    return [{ id: 1, name: "name" }];
-  });
-
-export const findPlanet = os
-  .input(PlanetSchema.pick({ id: true }))
-  .handler(async () => {
-    // your find code here
-    return { id: 1, name: "name" };
-  });
-
-export const createPlanet = authenticated
-  .input(PlanetSchema.omit({ id: true }))
-  .handler(async () => {
-    return { id: 1, name: "name" };
   });
 
 export const getUser = authenticated
@@ -97,6 +67,34 @@ export const createWork = authenticated
       });
     } catch (error) {
       console.error("Error creating work:", error);
+      return null;
+    }
+  });
+
+export const deleteWork = authenticated
+  .input(z.object({ id: z.string() }))
+  .handler(async ({ input }) => {
+    try {
+      await db.delete(works).where(eq(works.id, input.id));
+    } catch (error) {
+      console.error("Error deleting work:", error);
+      return null;
+    }
+  });
+
+export const updateWork = authenticated
+  .input(workInsertSchema.partial().extend({ id: z.string() }))
+  .handler(async ({ input, context }) => {
+    if (!context.session.user) return null;
+
+    try {
+      const work = await db.update(works).set({
+        ...input,
+        authorId: context.session.user.id,
+      });
+      return work;
+    } catch (error) {
+      console.error("Error updating work:", error);
       return null;
     }
   });
@@ -178,11 +176,6 @@ export const getUploadFileUrl = authenticated
   });
 
 export const router = {
-  planet: {
-    list: listPlanet,
-    find: findPlanet,
-    create: createPlanet,
-  },
   user: {
     get: getUser,
   },
@@ -195,6 +188,8 @@ export const router = {
     getBySlug: getWorkBySlug,
     getAllByAuthorId: getAllWorksByAuthorId,
     create: createWork,
+    delete: deleteWork,
+    update: updateWork,
   },
   upload: {
     file: getUploadFileUrl,
