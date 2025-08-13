@@ -6,6 +6,7 @@ import { Info } from "lucide-react";
 import { WorkOverviewWork } from "./types";
 
 export function MetadataCard({ work }: { work: WorkOverviewWork }) {
+  console.log(work);
   const tagsEmpty = !work.tags || Object.keys(work.tags).length === 0;
   const tagEntries = useMemo(
     () =>

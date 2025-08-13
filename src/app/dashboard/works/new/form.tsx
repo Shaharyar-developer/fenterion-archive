@@ -1,17 +1,11 @@
+"use client";
 import { TAGS } from "@/constants/tags";
 import { ROUTES } from "@/lib/routes";
 import { client } from "@/lib/orpc.client";
 import { nanoid } from "nanoid";
-("use client");
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@/components/ui/button";
-import {
-  extractExtension,
-  fileToBase64,
-  getCoverKey,
-  transformSlug,
-} from "@/lib/utils";
+import { getCoverKey, transformSlug } from "@/lib/utils";
 import { WorkStatus, WorkType } from "@/db/schema";
 import { useForm } from "react-hook-form";
 import React, { useEffect, useState } from "react";

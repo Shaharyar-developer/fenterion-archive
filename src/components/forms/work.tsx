@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { distance as levenshteinDistance } from "fastest-levenshtein";
 import { useFormContext, UseFormReturn } from "react-hook-form";
 import React, { useEffect, useState } from "react";
 import {
@@ -40,15 +41,16 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { TAGS } from "@/constants/tags";
+import { Button } from "../ui/button";
 
 // Utility function to convert title to slug
 function titleToSlug(title: string): string {
   return title
     .toLowerCase()
     .trim()
-    .replace(/[^w\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[^a-z0-9\s-]/g, "") // Remove non-alphanumeric, non-space, non-dash
+    .replace(/[\s_-]+/g, "-") // Replace spaces/underscores with dash
+    .replace(/^-+|-+$/g, ""); // Trim leading/trailing dashes
 }
 
 const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
@@ -98,33 +100,39 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
     : selectedValues.slice(0, maxShownItems);
   const hiddenCount = selectedValues.length - visibleItems.length;
   return (
-    <div className="w-full space-y-2">
+    <div className="w-full space-y-2 overflow-auto">
       <Label htmlFor={id}>Tags</Label>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover modal open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <button
+          <Button
             id={id}
             disabled={props.isDisabled}
-            className="h-auto min-h-8 w-full justify-between dark:bg-secondary/40 border flex flex-wrap items-center gap-1 pe-2.5"
-            type="button"
+            className="w-full justify-between bg-secondary/50"
+            variant={"outline"}
           >
             {selectedValues.length > 0 ? (
-              <>
+              <div>
                 {visibleItems.map((val) => (
                   <Badge key={val} variant="outline">
                     {val}
-                    <button
-                      type="button"
-                      className="size-4"
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="size-4 cursor-pointer inline-flex items-center justify-center"
                       onClick={(e) => {
                         e.stopPropagation();
                         removeSelection(val);
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          removeSelection(val);
+                        }
+                      }}
+                      aria-label={`Remove tag ${val}`}
                     >
-                      <span>
-                        <XIcon className="size-3" />
-                      </span>
-                    </button>
+                      <XIcon className="size-3" />
+                    </span>
                   </Badge>
                 ))}
                 {hiddenCount > 0 || expanded ? (
@@ -138,7 +146,7 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
                     {expanded ? "Show Less" : `+${hiddenCount} more`}
                   </Badge>
                 ) : null}
-              </>
+              </div>
             ) : (
               <span className="text-muted-foreground">Select tags</span>
             )}
@@ -147,12 +155,15 @@ const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
               className="text-muted-foreground/80 shrink-0"
               aria-hidden="true"
             />
-          </button>
+          </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-(--radix-popper-anchor-width) p-0">
+        <PopoverContent
+          data-remove-scroll-barrier
+          className="w-(--radix-popper-anchor-width) p-0"
+        >
           <Command>
             <CommandInput placeholder="Search tags..." />
-            <CommandList>
+            <CommandList className="">
               <CommandEmpty>No tag found.</CommandEmpty>
               {tagGroups.map((group, idx) => (
                 <React.Fragment key={group.label}>
@@ -195,6 +206,8 @@ interface GenericWorkFormProps {
     tags?: string[] | undefined;
   }>;
   submitLabel?: string;
+  hideFields?: string[];
+  readOnlyFields?: string[];
 }
 
 export const GenericWorkForm = ({
@@ -203,205 +216,253 @@ export const GenericWorkForm = ({
   onSubmit,
   form,
   submitLabel = "Submit",
+  hideFields = [],
+  readOnlyFields = [],
 }: GenericWorkFormProps) => {
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const titleValue = form.watch("title");
+  const [titleError, setTitleError] = useState<string | null>(null);
+  // Store the initial title for edit mode
+  const [initialTitle] = useState(() => form.getValues("title"));
+  // Set max allowed Levenshtein distances
+  const MAX_TITLE_DISTANCE = 8;
+  const MAX_TITLE_DISTANCE_IF_CONTAINS = 18;
   useEffect(() => {
-    if (!isSlugManuallyEdited && titleValue) {
-      const generatedSlug = titleToSlug(titleValue);
-      form.setValue("slug", generatedSlug);
+    if (!isSlugManuallyEdited) {
+      if (titleValue) {
+        const generatedSlug = titleToSlug(titleValue);
+        form.setValue("slug", generatedSlug);
+      } else {
+        form.setValue("slug", "");
+      }
     }
-  }, [titleValue, isSlugManuallyEdited, form]);
+    // If editing, check Levenshtein distance
+    if (initialTitle && titleValue !== initialTitle) {
+      const dist = levenshteinDistance(initialTitle, titleValue);
+      const containsOriginal = titleValue
+        .toLowerCase()
+        .includes(initialTitle.toLowerCase());
+      const allowedDistance = containsOriginal
+        ? MAX_TITLE_DISTANCE_IF_CONTAINS
+        : MAX_TITLE_DISTANCE;
+      if (dist > allowedDistance) {
+        setTitleError(
+          containsOriginal
+            ? `Title is too different from the original, Please keep changes minimal (max distance: ${MAX_TITLE_DISTANCE_IF_CONTAINS}).`
+            : `Title is too different from the original. Please keep changes minimal (max distance: ${MAX_TITLE_DISTANCE}).`
+        );
+      } else {
+        setTitleError(null);
+      }
+    } else {
+      setTitleError(null);
+    }
+  }, [titleValue, isSlugManuallyEdited, form, initialTitle]);
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col py-2 lg:py-5 w-full mx-auto rounded-md gap-2"
       >
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem className="w-full p-2 lg:px-4">
-              <FormLabel>Title*</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="e.g: Time Dilation"
-                  type={"text"}
-                  disabled={isPending || loading}
-                  autoFocus
-                  value={field.value}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    field.onChange(val);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="slug"
-          render={({ field }) => (
-            <FormItem className="w-full p-2 lg:px-4">
-              <FormLabel>Slug*</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="auto-generated from title"
-                  type={"text"}
-                  value={field.value}
-                  disabled={isPending || loading}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    field.onChange(val);
-                    setIsSlugManuallyEdited(true);
-                  }}
-                  onFocus={() => {
-                    setIsSlugManuallyEdited(true);
-                  }}
-                />
-              </FormControl>
-              <FormDescription>
-                Immutable identifier for your work (auto-generated from title)
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem className="w-fulld p-2 lg:px-4">
-              <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Textarea
-                  {...field}
-                  disabled={isPending || loading}
-                  placeholder="The sky was blue, but the sun was orange..."
-                  className="resize-none"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="type"
-          render={({ field }) => {
-            const options = [
-              { value: WorkType.STORY, label: "Story" },
-              { value: WorkType.SHORT_STORY, label: "Short Story" },
-              { value: WorkType.POEM, label: "Poetry" },
-              { value: WorkType.FANFICTION, label: "Fanfiction" },
-            ];
-            return (
+        {hideFields.includes("title") ? null : (
+          <FormField
+            control={form.control}
+            name="title"
+            render={({ field }) => (
               <FormItem className="w-full p-2 lg:px-4">
-                <FormLabel>Type*</FormLabel>
-                <Select
-                  disabled={isPending || loading}
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {options.map(({ label, value }) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => {
-            const options = [
-              { value: WorkStatus.DRAFT, label: "Draft" },
-              { value: WorkStatus.PUBLISHED, label: "Published" },
-            ];
-            return (
-              <FormItem className="w-full p-2 lg:px-4">
-                <FormLabel>Initial Status*</FormLabel>
-                <Select
-                  disabled={isPending || loading}
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {options.map(({ label, value }) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
-        <FormField
-          control={form.control}
-          name="cover"
-          render={({ field }) => {
-            return (
-              <FormItem className="w-full p-2 lg:px-4">
-                <FormLabel>Cover Image</FormLabel>
+                <FormLabel>Title*</FormLabel>
                 <FormControl>
                   <Input
-                    disabled={isPending || loading}
-                    type="file"
-                    accept="image/*"
-                    className=""
+                    placeholder="e.g: Time Dilation"
+                    type={"text"}
+                    disabled={
+                      isPending || loading || readOnlyFields.includes("title")
+                    }
+                    autoFocus
+                    value={field.value}
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        field.onChange(file);
-                      } else {
-                        field.onChange(undefined);
-                      }
+                      const val = e.target.value;
+                      field.onChange(val);
                     }}
+                    readOnly={readOnlyFields.includes("title")}
+                  />
+                </FormControl>
+                {titleError && (
+                  <div className="text-destructive text-xs mt-1">
+                    {titleError}
+                  </div>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        {hideFields.includes("slug") ? null : (
+          <FormField
+            control={form.control}
+            name="slug"
+            render={({ field }) => (
+              <FormItem className="w-full p-2 lg:px-4">
+                <FormLabel>Slug*</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="auto-generated from title"
+                    type={"text"}
+                    value={field.value}
+                    disabled
+                    readOnly
+                  />
+                </FormControl>
+                <FormDescription>
+                  Immutable identifier for your work (auto-generated from title)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        {hideFields.includes("description") ? null : (
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem className="w-fulld p-2 lg:px-4">
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    disabled={isPending || loading}
+                    placeholder="The sky was blue, but the sun was orange..."
+                    className="resize-none"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
-            );
-          }}
-        />
-        <FormField
-          control={form.control}
-          name="tags"
-          render={() => (
-            <FormItem className="w-full p-2 lg:px-4">
-              <CustomTagsSelect isDisabled={isPending || loading} />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            )}
+          />
+        )}
+        {hideFields.includes("type") ? null : (
+          <FormField
+            control={form.control}
+            name="type"
+            render={({ field }) => {
+              const options = [
+                { value: WorkType.STORY, label: "Story" },
+                { value: WorkType.SHORT_STORY, label: "Short Story" },
+                { value: WorkType.POEM, label: "Poetry" },
+                { value: WorkType.FANFICTION, label: "Fanfiction" },
+              ];
+              return (
+                <FormItem className="w-full p-2 lg:px-4">
+                  <FormLabel>Type*</FormLabel>
+                  <Select
+                    disabled={isPending || loading}
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {options.map(({ label, value }) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+        )}
+        {hideFields.includes("status") ? null : (
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => {
+              const options = [
+                { value: WorkStatus.DRAFT, label: "Draft" },
+                { value: WorkStatus.PUBLISHED, label: "Published" },
+              ];
+              return (
+                <FormItem className="w-full p-2 lg:px-4">
+                  <FormLabel>Initial Status*</FormLabel>
+                  <Select
+                    disabled={isPending || loading}
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {options.map(({ label, value }) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+        )}
+        {hideFields.includes("cover") ? null : (
+          <FormField
+            control={form.control}
+            name="cover"
+            render={({ field }) => {
+              return (
+                <FormItem className="w-full p-2 lg:px-4">
+                  <FormLabel>Cover Image</FormLabel>
+                  <FormControl>
+                    <Input
+                      disabled={isPending || loading}
+                      type="file"
+                      accept="image/*"
+                      className=""
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          field.onChange(file);
+                        } else {
+                          field.onChange(undefined);
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
+          />
+        )}
+        {hideFields.includes("tags") ? null : (
+          <FormField
+            control={form.control}
+            name="tags"
+            render={() => (
+              <FormItem className="w-full p-2 lg:px-4">
+                <CustomTagsSelect isDisabled={isPending || loading} />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <div className="py-3 w-full">
           <Separator />
         </div>
         <div className="flex justify-end grow items-center w-full pt-3 px-2 lg:px-4">
           <button
-            disabled={isPending || loading}
+            disabled={isPending || loading || !!titleError}
             className="rounded-lg w-full bg-primary text-primary-foreground py-2 px-4"
             type="submit"
           >

@@ -87,11 +87,16 @@ export const updateWork = authenticated
   .handler(async ({ input, context }) => {
     if (!context.session.user) return null;
 
+    const { id, slug, authorId, title, ...updateFields } = input;
     try {
-      const work = await db.update(works).set({
-        ...input,
-        authorId: context.session.user.id,
-      });
+      const work = await db
+        .update(works)
+        .set({
+          ...updateFields,
+          authorId: context.session.user.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(works.id, id));
       return work;
     } catch (error) {
       console.error("Error updating work:", error);

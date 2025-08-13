@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,8 +33,127 @@ import {
   BookOpen,
   Check,
   ArchiveRestore,
+  X,
 } from "lucide-react";
 import { WorkOverviewWork } from "./types";
+import { TAGS } from "@/constants/tags";
+import { useForm } from "react-hook-form";
+import { GenericWorkForm } from "@/components/forms/work";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { formSchema } from "@/app/dashboard/works/new/form";
+
+// EditWorkDialog: AlertDialog with GenericWorkForm for editing a work
+function EditWorkDialog({
+  open,
+  onOpenChange,
+  work,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  work: WorkOverviewWork;
+}) {
+  const [loading, setLoading] = useState(false);
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: work.title,
+      slug: work.slug,
+      description: work.description || "",
+      type: work.type,
+      status: work.status,
+      tags: Array.isArray(work.tags)
+        ? work.tags
+        : work.tags
+          ? Object.values(work.tags).flat()
+          : [],
+    },
+  });
+
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      form.reset({
+        title: work.title,
+        slug: work.slug,
+        description: work.description || "",
+        type: work.type,
+        status: work.status,
+        tags: Array.isArray(work.tags)
+          ? work.tags
+          : work.tags
+            ? Object.values(work.tags).flat()
+            : [],
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function onSubmit(data: any) {
+    setLoading(true);
+    try {
+      // Regroup tags into object shape for backend
+      let groupedTags: Record<string, string[]> | null = null;
+      if (Array.isArray(data.tags)) {
+        // Ensure data.type is WorkType
+        const workType = data.type as keyof typeof TAGS;
+        groupedTags = { general: [], [workType]: [] };
+        for (const tag of data.tags as string[]) {
+          if (TAGS.general.includes(tag)) {
+            (groupedTags.general as string[]).push(tag);
+          } else if (TAGS[workType]?.includes(tag)) {
+            (groupedTags[workType] as string[]).push(tag);
+          }
+        }
+        // Remove empty groups
+        Object.keys(groupedTags).forEach((k) => {
+          if (!(groupedTags as Record<string, string[]>)[k].length)
+            delete (groupedTags as Record<string, string[]>)[k];
+        });
+        if (Object.keys(groupedTags).length === 0) groupedTags = null;
+      }
+      await client.work.update({
+        id: work.id,
+        ...data,
+        tags: groupedTags,
+      });
+      toast.success("Work updated successfully");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error("Failed to update work");
+    } finally {
+      setLoading(false);
+      window.location.reload();
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="max-w-lg">
+        <AlertDialogHeader className="relative">
+          <AlertDialogTitle>Edit Work</AlertDialogTitle>
+          <AlertDialogDescription>
+            Update the details for this work. Changes will be saved immediately.
+          </AlertDialogDescription>
+          <AlertDialogCancel
+            className="absolute right-0 -top-2"
+            disabled={loading}
+          >
+            Cancel <X />
+          </AlertDialogCancel>
+        </AlertDialogHeader>
+        <GenericWorkForm
+          isPending={false}
+          loading={loading}
+          onSubmit={onSubmit}
+          form={form}
+          submitLabel="Save Changes"
+          hideFields={["cover", "slug"]}
+          readOnlyFields={["title"]}
+        />
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { WORK_STATUS_META } from "@/constants/work-status-meta";
 import { WorkStatus } from "@/db/schema";
@@ -253,6 +372,7 @@ export function StatusStrip({
   const deleting = loading === "Delete";
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [coverDialogOpen, setCoverDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const handleDelete = async () => {
     run("Delete", async () => {
@@ -373,7 +493,10 @@ export function StatusStrip({
           </DropdownMenuItem>
           <DropdownMenuItem
             className="gap-2"
-            onSelect={(e) => e.preventDefault()}
+            onSelect={(e) => {
+              e.preventDefault();
+              setEditDialogOpen(true);
+            }}
           >
             <Edit className="h-4 w-4" /> Edit
           </DropdownMenuItem>
@@ -420,6 +543,11 @@ export function StatusStrip({
         open={coverDialogOpen}
         onOpenChange={setCoverDialogOpen}
         onUpload={handleCoverUpload}
+      />
+      <EditWorkDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        work={work}
       />
     </div>
   );
