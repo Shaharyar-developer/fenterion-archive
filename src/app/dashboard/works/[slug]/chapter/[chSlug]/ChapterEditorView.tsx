@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { client } from "@/lib/orpc.client";
 import { ChapterVersion } from "@/db/schema";
 import { ChapterContent } from "@/components/blocks/editor/chapter-content";
 import { ChapterHeader } from "@/components/blocks/editor/chapter-header";
@@ -19,33 +20,37 @@ export function ChapterEditorView() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const autosaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const [saveMode, setSaveMode] = useState<"overwrite" | "new-version">(
+    "overwrite"
+  );
   const [viewMode, setViewMode] = useLocalStorage<"readable" | "max-width">(
     "editorView:v1",
     "max-width"
   );
   const save = useCallback(async () => {
-    if (saving) return;
+    if (saving || !chapter || typeof content !== "string") return;
     setSaving(true);
-    // TODO: mutation to persist (chapter.id, content)
-    await new Promise((r) => setTimeout(r, 500));
-    setSaving(false);
-    setDirty(false);
-    setLastSavedAt(new Date());
-  }, [saving, content]);
-
-  // Autosave after inactivity
-  useEffect(() => {
-    if (!dirty) return;
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => {
-      void save();
-    }, 5000);
-
-    return () => {
-      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    };
-  }, [dirty, content, save]);
+    try {
+      if (saveMode === "overwrite" && currentChapterVersion) {
+        await client.chapter.updateVersion({
+          id: currentChapterVersion.id,
+          content,
+        });
+      } else if (saveMode === "new-version") {
+        await client.chapter.createVersion({
+          chapterId: chapter.id,
+          content,
+        });
+      }
+      setDirty(false);
+      setLastSavedAt(new Date());
+      // TODO: optionally invalidate query to refresh versions
+    } catch (e) {
+      console.error("Save failed", e);
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, chapter, content, saveMode, currentChapterVersion]);
 
   useEffect(() => {
     if (
@@ -87,6 +92,8 @@ export function ChapterEditorView() {
         saving={saving}
         lastSavedAt={lastSavedAt}
         onSave={save}
+        saveMode={saveMode}
+        onChangeSaveMode={setSaveMode}
       />
       <ChapterContent
         viewMode={viewMode}

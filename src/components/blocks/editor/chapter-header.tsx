@@ -40,6 +40,8 @@ interface ChapterHeaderProps {
   saving?: boolean;
   lastSavedAt?: Date | null;
   onSave?: () => void | Promise<void>;
+  saveMode?: "overwrite" | "new-version";
+  onChangeSaveMode?: (mode: "overwrite" | "new-version") => void;
 }
 
 export function ChapterHeader({
@@ -48,6 +50,8 @@ export function ChapterHeader({
   saving,
   lastSavedAt,
   onSave,
+  saveMode = "overwrite",
+  onChangeSaveMode,
 }: ChapterHeaderProps) {
   // If chapter is undefined, render a skeleton/loading state
   if (!chapter) {
@@ -319,23 +323,56 @@ export function ChapterHeader({
                       x: 8,
                       transition: { duration: 0.12 },
                     }}
+                    className="flex"
                   >
                     <Button
-                      size="sm"
-                      variant="outline"
                       disabled={saving}
+                      size={"default"}
+                      variant={"outline"}
+                      className="rounded-r-none w-20"
                       onClick={() => {
                         if (onSave) void onSave();
                       }}
-                      className="h-9 px-3 gap-1 shadow-sm hover:shadow transition-shadow"
                     >
+                      Save
                       {saving ? (
-                        <Loader2 className="size-3 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                       ) : (
-                        <Save className="size-3" />
+                        <Save className="size-4" />
                       )}
-                      <span className="text-xs font-medium">Save</span>
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          disabled={saving}
+                          className="hover:shadow transition-shadow flex items-center rounded-l-none justify-cente"
+                        >
+                          <ChevronDown className="size-4 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuItem
+                          onClick={() => onChangeSaveMode?.("overwrite")}
+                          className="flex items-center gap-2 text-xs"
+                        >
+                          {saveMode === "overwrite" && (
+                            <Check className="size-3" />
+                          )}
+                          <span>Save & Overwrite (default)</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => onChangeSaveMode?.("new-version")}
+                          className="flex items-center gap-2 text-xs"
+                        >
+                          {saveMode === "new-version" && (
+                            <Check className="size-3" />
+                          )}
+                          <span>Save as New Version</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </motion.div>
                 )}
               </AnimatePresence>

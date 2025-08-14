@@ -192,30 +192,30 @@ export const createChapterDraft = authenticated
   )
   .handler(async ({ input, context }) => {
     const { workId, title } = input;
-    if (!context.session.user) {
+    const user = context.session.user;
+    if (!user) {
       throw new ORPCError("UNAUTHORIZED");
     }
+
+    const chapterId = nanoid();
+    const currentVersionId = nanoid();
+    const slug = transformSlug(slugify(title), user.id);
+
     try {
-      const chapterId = nanoid();
-      const currentVersionId = nanoid();
-      // 1. Insert chapter first
-      await db.insert(chapters).values({
-        ...input,
-        currentVersionId,
-        id: chapterId,
-        workId,
-        slug: transformSlug(slugify(title), context.session.user.id),
+      await db.transaction(async (tx) => {
+        await tx.insert(chapters).values({
+          ...input,
+          id: chapterId,
+          workId,
+          slug,
+          currentVersionId,
+        });
+
+        await tx.insert(chapterVersions).values({
+          id: currentVersionId,
+          chapterId,
+        });
       });
-      // 2. Now insert chapterVersion referencing the new chapter
-      await db.insert(chapterVersions).values({
-        id: currentVersionId,
-        chapterId,
-      });
-      // 3. Optionally update chapter with currentVersionId if needed
-      await db
-        .update(chapters)
-        .set({ currentVersionId })
-        .where(eq(chapters.id, chapterId));
     } catch (error) {
       console.error("Error creating chapter:", error);
       throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -348,6 +348,73 @@ export const getChapterAndVersionsByChapterSlug = authenticated
     return { versions: versions, chapter: _chapterVersions[0].chapters };
   });
 
+export const createChapterVersion = authenticated
+  .input(
+    z.object({
+      chapterId: z.string(),
+      content: z.string().optional(),
+    })
+  )
+  .handler(async ({ input, context }) => {
+    const user = context.session.user;
+    if (!user) {
+      throw new ORPCError("UNAUTHORIZED");
+    }
+
+    const versionId = nanoid();
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx.insert(chapterVersions).values({
+          id: versionId,
+          chapterId: input.chapterId,
+          content: input.content,
+        });
+
+        await tx
+          .update(chapters)
+          .set({ currentVersionId: versionId, updatedAt: new Date() })
+          .where(eq(chapters.id, input.chapterId));
+      });
+
+      return { id: versionId };
+    } catch (error) {
+      console.error("Error creating chapter version:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
+export const updateChapterVersion = authenticated
+  .input(
+    z.object({
+      id: z.string(),
+      content: z.string().optional(),
+    })
+  )
+  .handler(async ({ input, context }) => {
+    const user = context.session.user;
+    if (!user) {
+      throw new ORPCError("UNAUTHORIZED");
+    }
+
+    const { id, content } = input;
+
+    try {
+      const updateData: Partial<typeof chapterVersions.$inferInsert> = {
+        updatedAt: new Date(),
+      };
+      if (content !== undefined) updateData.content = content;
+
+      return await db
+        .update(chapterVersions)
+        .set(updateData)
+        .where(eq(chapterVersions.id, id));
+    } catch (error) {
+      console.error("Error updating chapter version:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
 export const router = {
   user: {
     get: getUser,
@@ -374,6 +441,9 @@ export const router = {
     getVersionById: getChapterVersionById,
     getAllVersionsByChapterId: getAllChapterVersionsByChapterId,
     getWithVersionsByChapterSlug: getChapterAndVersionsByChapterSlug,
+    // Version mutation endpoints (used by editor save dropdown)
+    createVersion: createChapterVersion,
+    updateVersion: updateChapterVersion,
   },
   upload: {
     file: getUploadFileUrl,
