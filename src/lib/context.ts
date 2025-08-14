@@ -1,6 +1,12 @@
 "use client";
 import React, { createContext, useContext, useState } from "react";
-import type { Work, WorkType, WorkStatus } from "@/db/schema";
+import type {
+  Work,
+  WorkType,
+  WorkStatus,
+  Chapter,
+  ChapterVersion,
+} from "@/db/schema";
 
 type WorkDraftData = {
   title?: string;
@@ -19,5 +25,19 @@ type WorkDraftContextType = {
 };
 
 export const WorkDraftContext = createContext<WorkDraftContextType | undefined>(
+  undefined
+);
+
+type ChapterContextType = {
+  chapter: Chapter | null;
+  currentChapterVersion: ChapterVersion | null;
+  setChapter: React.Dispatch<React.SetStateAction<Chapter | null>>;
+  setCurrentChapterVersion: React.Dispatch<
+    React.SetStateAction<ChapterVersion | null>
+  >;
+  isPending?: boolean;
+};
+
+export const ChapterContext = createContext<ChapterContextType | undefined>(
   undefined
 );

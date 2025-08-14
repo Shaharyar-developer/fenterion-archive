@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { authClient } from "./utils";
 import { db } from "@/db";
 import { client } from "./orpc.client";
@@ -90,6 +90,28 @@ export const chaptersQuery = (workId: string) => {
   });
 };
 
+export const chapterQuery = (chapterSlug: string) => {
+  return useQuery({
+    queryKey: ["chapter", chapterSlug],
+    queryFn: async () => {
+      const session = await authClient.getSession();
+      if (!session || !session.data?.user) {
+        return null;
+      }
+      const userId = session.data?.user.id;
+      if (!userId) {
+        return null;
+      }
+
+      const chapter = await client.chapter.getBySlug({
+        slug: chapterSlug,
+      });
+      return chapter || null;
+    },
+    enabled: !!chapterSlug,
+  });
+};
+
 export const chapterVersionQuery = (versionId: string) => {
   return useQuery({
     queryKey: ["chapterVersion", versionId],
@@ -111,3 +133,22 @@ export const chapterVersionQuery = (versionId: string) => {
     enabled: !!versionId,
   });
 };
+
+export const chapterAndVersionOptions = (chapterSlug: string) =>
+  queryOptions({
+    queryKey: ["chapterAndVersions", chapterSlug],
+    queryFn: async () => {
+      const session = await authClient.getSession();
+      if (!session?.data?.user?.id) return null;
+
+      const { versions, chapter } =
+        await client.chapter.getWithVersionsByChapterSlug({
+          slug: chapterSlug,
+        });
+      return { versions, chapter };
+    },
+    enabled: !!chapterSlug,
+  });
+
+export const useChapterAndVersionsQuery = (chapterSlug: string) =>
+  useQuery(chapterAndVersionOptions(chapterSlug));

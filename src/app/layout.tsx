@@ -42,7 +42,7 @@ export default function RootLayout({
           >
             <Navbar />
             {children}
-            <Toaster position="bottom-center" richColors />
+            <Toaster position="top-center" richColors />
           </ThemeProvider>
         </QueryProviders>
       </body>

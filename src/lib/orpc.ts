@@ -271,6 +271,32 @@ export const getAllChaptersMetaByWorkId = authenticated
     return chapters;
   });
 
+export const getChapterById = authenticated
+  .input(z.object({ id: z.string() }))
+  .handler(async ({ input }) => {
+    const chapter = await db.query.chapters.findFirst({
+      where: (chapter, { eq }) => eq(chapter.id, input.id),
+    });
+    if (!chapter) {
+      throw new ORPCError("NOT_FOUND");
+    } else {
+      return chapter;
+    }
+  });
+
+export const getChapterBySlug = authenticated
+  .input(z.object({ slug: z.string() }))
+  .handler(async ({ input }) => {
+    const chapter = await db.query.chapters.findFirst({
+      where: (chapter, { eq }) => eq(chapter.slug, input.slug),
+    });
+    if (!chapter) {
+      throw new ORPCError("NOT_FOUND");
+    } else {
+      return chapter;
+    }
+  });
+
 export const getChapterMetaBySlug = authenticated
   .input(z.object({ slug: z.string() }))
   .handler(async ({ input }) => {
@@ -306,6 +332,22 @@ export const getAllChapterVersionsByChapterId = authenticated
     return chapterVersions;
   });
 
+export const getChapterAndVersionsByChapterSlug = authenticated
+  .input(z.object({ slug: z.string() }))
+  .handler(async ({ input }) => {
+    const _chapterVersions = await db
+      .select()
+      .from(chapterVersions)
+      .innerJoin(chapters, eq(chapterVersions.chapterId, chapters.id))
+      .where(eq(chapters.slug, input.slug));
+
+    if (_chapterVersions.length === 0) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    const versions = _chapterVersions.map((row) => row.chapter_versions);
+    return { versions: versions, chapter: _chapterVersions[0].chapters };
+  });
+
 export const router = {
   user: {
     get: getUser,
@@ -324,10 +366,14 @@ export const router = {
   },
   chapter: {
     getAllMetaByWorkId: getAllChaptersMetaByWorkId,
+    getById: getChapterById,
+    getBySlug: getChapterBySlug,
     createDraft: createChapterDraft,
     update: updateChapter,
     getMetaBySlug: getChapterMetaBySlug,
     getVersionById: getChapterVersionById,
+    getAllVersionsByChapterId: getAllChapterVersionsByChapterId,
+    getWithVersionsByChapterSlug: getChapterAndVersionsByChapterSlug,
   },
   upload: {
     file: getUploadFileUrl,
