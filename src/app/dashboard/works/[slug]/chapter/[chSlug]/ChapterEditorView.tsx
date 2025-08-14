@@ -27,19 +27,28 @@ export function ChapterEditorView() {
     "editorView:v1",
     "max-width"
   );
+  const compute = () => {
+    const text = content || "";
+    const normalized = text.replace(/\s+/g, " ").trim();
+    const words = normalized ? normalized.split(" ").filter(Boolean).length : 0;
+    return words;
+  };
   const save = useCallback(async () => {
     if (saving || !chapter || typeof content !== "string") return;
     setSaving(true);
+    const wordCount = compute();
     try {
       if (saveMode === "overwrite" && currentChapterVersion) {
         await client.chapter.updateVersion({
           id: currentChapterVersion.id,
           content,
+          wordCount,
         });
       } else if (saveMode === "new-version") {
         await client.chapter.createVersion({
           chapterId: chapter.id,
           content,
+          wordCount,
         });
       }
       setDirty(false);

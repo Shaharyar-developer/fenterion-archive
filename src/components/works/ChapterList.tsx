@@ -47,18 +47,24 @@ function formatRelativeTime(date: Date | null | undefined) {
   return `${years}y ago`;
 }
 
-export function ChapterList({ work, chapters }: { work: Work; chapters: Chapter[] }) {
+export function ChapterList({
+  work,
+  chapters,
+}: {
+  work: Work;
+  chapters: Chapter[];
+}) {
   const { loading, run } = useAsyncAction();
   const router = useRouter();
 
   const handleSubmit = async (data: z.infer<typeof formSchema>) => {
     const title = data.title.trim();
     await run("Create Chapter Draft", async () => {
-      await client.chapter.createDraft({
+      const slug = await client.chapter.createDraft({
         workId: work.id,
         title,
       });
-      router.push(ROUTES.dashboard.works.bySlugChapter(work.slug, title));
+      router.push(ROUTES.dashboard.works.bySlugChapter(work.slug, slug));
     });
   };
 
@@ -208,6 +214,11 @@ function ChapterRow({ work, chapter }: { work: Work; chapter: Chapter }) {
                 </TooltipContent>
               </Tooltip>
             )}
+            {chapter.wordCount > 0 && (
+              <span className="text-xs text-muted-foreground">
+                | {chapter.wordCount} words
+              </span>
+            )}
           </div>
         </div>
         <ChapterActions
@@ -232,7 +243,10 @@ function ChapterActions({
   return (
     <div className="relative">
       <Button
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
         variant="ghost"
         size="icon"
         aria-label="Chapter actions"
@@ -240,7 +254,6 @@ function ChapterActions({
       >
         <Ellipsis />
       </Button>
-      {/* Future: dropdown menu for actions (Edit, Preview, Publish) */}
     </div>
   );
 }

@@ -202,7 +202,7 @@ export const works = pgTable("works", {
   coverKey: text("cover_key"),
   type: workTypeEnum("type").default(WorkType.STORY).notNull(),
   status: workStatusEnum("status").default(WorkStatus.DRAFT).notNull(),
-  wordCount: integer("word_count"),
+  wordCount: integer("word_count").default(0),
   tags: jsonb("tags").$type<Record<string, string[]>>().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -225,6 +225,7 @@ export const chapters = pgTable("chapters", {
   currentVersionId: text("current_version_id").notNull(),
   status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
+  wordCount: integer("word_count").default(0).notNull(),
 });
 
 export const chapterInsertSchema = createInsertSchema(chapters);

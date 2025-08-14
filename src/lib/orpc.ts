@@ -16,7 +16,7 @@ import {
 import { slugify, transformSlug } from "./utils";
 import { dataTagErrorSymbol } from "@tanstack/react-query";
 import { generatePresignedPutUrl, uploadToR2 } from "./minio";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 
 const authenticated = os
   .$context<{ session: Session | null }>()
@@ -26,6 +26,37 @@ const authenticated = os
     }
     return next({ context: { session: context.session } });
   });
+
+const COUNT_ONLY_PUBLISHED_CHAPTERS = false;
+
+async function applyWorkWordCountDelta(tx: any, workId: string, delta: number) {
+  if (!delta) return;
+  await tx
+    .update(works)
+    .set({
+      wordCount: sql`${works.wordCount} + ${delta}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(works.id, workId));
+}
+
+async function recomputeWorkWordCount(tx: any, workId: string) {
+  const whereConditions = COUNT_ONLY_PUBLISHED_CHAPTERS
+    ? and(
+        eq(chapters.workId, workId),
+        eq(chapters.status, ChapterStatus.PUBLISHED)
+      )
+    : eq(chapters.workId, workId);
+
+  const [{ total } = { total: 0 }] = await tx
+    .select({ total: sql<number>`COALESCE(SUM(${chapters.wordCount}), 0)` })
+    .from(chapters)
+    .where(whereConditions);
+  await tx
+    .update(works)
+    .set({ wordCount: total, updatedAt: new Date() })
+    .where(eq(works.id, workId));
+}
 
 export const getUser = authenticated
   .input(z.string())
@@ -216,6 +247,7 @@ export const createChapterDraft = authenticated
           chapterId,
         });
       });
+      return slug;
     } catch (error) {
       console.error("Error creating chapter:", error);
       throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -239,14 +271,39 @@ export const updateChapter = authenticated
       throw new ORPCError("UNAUTHORIZED");
     }
     try {
-      const chapter = await db
-        .update(chapters)
-        .set({
-          ...updateFields,
-          updatedAt: new Date(),
-        })
-        .where(eq(chapters.id, id));
-      return chapter;
+      let result;
+      await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select({
+            status: chapters.status,
+            wordCount: chapters.wordCount,
+            workId: chapters.workId,
+          })
+          .from(chapters)
+          .where(eq(chapters.id, id))
+          .limit(1);
+        if (!existing) throw new ORPCError("NOT_FOUND");
+
+        result = await tx
+          .update(chapters)
+          .set({
+            ...updateFields,
+            updatedAt: new Date(),
+          })
+          .where(eq(chapters.id, id));
+
+        if (COUNT_ONLY_PUBLISHED_CHAPTERS && updateFields.status) {
+          const oldPublished = existing.status === "published";
+          const newPublished = updateFields.status === "published";
+          if (oldPublished !== newPublished) {
+            const delta = newPublished
+              ? existing.wordCount
+              : -existing.wordCount;
+            await applyWorkWordCountDelta(tx, existing.workId, delta);
+          }
+        }
+      });
+      return result;
     } catch (error) {
       console.error("Error updating chapter:", error);
       throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -352,7 +409,8 @@ export const createChapterVersion = authenticated
   .input(
     z.object({
       chapterId: z.string(),
-      content: z.string().optional(),
+      content: z.string(),
+      wordCount: z.number(),
     })
   )
   .handler(async ({ input, context }) => {
@@ -365,16 +423,51 @@ export const createChapterVersion = authenticated
 
     try {
       await db.transaction(async (tx) => {
+        const [existingChapter] = await tx
+          .select({
+            wordCount: chapters.wordCount,
+            status: chapters.status,
+            workId: chapters.workId,
+          })
+          .from(chapters)
+          .where(eq(chapters.id, input.chapterId))
+          .limit(1);
+        if (!existingChapter) throw new ORPCError("NOT_FOUND");
+        // 1. Insert the new version
         await tx.insert(chapterVersions).values({
           id: versionId,
           chapterId: input.chapterId,
           content: input.content,
         });
 
+        // 2. Update chapter's current version
         await tx
           .update(chapters)
-          .set({ currentVersionId: versionId, updatedAt: new Date() })
+          .set({
+            currentVersionId: versionId,
+            updatedAt: new Date(),
+            wordCount: input.wordCount,
+          })
           .where(eq(chapters.id, input.chapterId));
+
+        // Always recalculate work word count after updating chapter word count
+        await recomputeWorkWordCount(tx, existingChapter.workId);
+        // 3. Keep only last 5 versions
+        const subquery = tx
+          .select({ id: chapterVersions.id })
+          .from(chapterVersions)
+          .where(eq(chapterVersions.chapterId, input.chapterId))
+          .orderBy(desc(chapterVersions.updatedAt))
+          .limit(5);
+
+        await tx
+          .delete(chapterVersions)
+          .where(
+            and(
+              eq(chapterVersions.chapterId, input.chapterId),
+              notInArray(chapterVersions.id, subquery)
+            )
+          );
       });
 
       return { id: versionId };
@@ -388,7 +481,8 @@ export const updateChapterVersion = authenticated
   .input(
     z.object({
       id: z.string(),
-      content: z.string().optional(),
+      content: z.string(),
+      wordCount: z.number(),
     })
   )
   .handler(async ({ input, context }) => {
@@ -397,18 +491,45 @@ export const updateChapterVersion = authenticated
       throw new ORPCError("UNAUTHORIZED");
     }
 
-    const { id, content } = input;
+    const { id, content, wordCount } = input;
 
     try {
-      const updateData: Partial<typeof chapterVersions.$inferInsert> = {
-        updatedAt: new Date(),
-      };
-      if (content !== undefined) updateData.content = content;
+      await db.transaction(async (tx) => {
+        const version = await tx.query.chapterVersions.findFirst({
+          where: (cv, { eq }) => eq(cv.id, id),
+        });
+        if (!version) throw new ORPCError("NOT_FOUND");
+        const [chapterBefore] = await tx
+          .select({
+            wordCount: chapters.wordCount,
+            status: chapters.status,
+            workId: chapters.workId,
+          })
+          .from(chapters)
+          .where(eq(chapters.id, version.chapterId))
+          .limit(1);
+        if (!chapterBefore) throw new ORPCError("NOT_FOUND");
 
-      return await db
-        .update(chapterVersions)
-        .set(updateData)
-        .where(eq(chapterVersions.id, id));
+        const updateData: Partial<typeof chapterVersions.$inferInsert> = {
+          updatedAt: new Date(),
+        };
+        if (content !== undefined) updateData.content = content;
+
+        await tx
+          .update(chapterVersions)
+          .set(updateData)
+          .where(eq(chapterVersions.id, id));
+
+        await tx
+          .update(chapters)
+          .set({ wordCount, updatedAt: new Date() })
+          .where(eq(chapters.id, version.chapterId));
+
+        // Always recalculate work word count after updating chapter word count
+        // This ensures the work total is correct regardless of chapter status
+        await recomputeWorkWordCount(tx, chapterBefore.workId);
+      });
+      return { id };
     } catch (error) {
       console.error("Error updating chapter version:", error);
       throw new ORPCError("INTERNAL_SERVER_ERROR");

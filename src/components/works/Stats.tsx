@@ -1,6 +1,8 @@
+"use client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WORK_STATUS_META } from "@/constants/work-status-meta";
 import { WorkOverviewWork, WorkOverviewChapter } from "./types";
+import { useChapter } from "@/hooks/use-chapter";
 
 export function Stats({
   work,
