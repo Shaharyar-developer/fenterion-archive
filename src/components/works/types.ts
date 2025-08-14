@@ -22,7 +22,6 @@ export interface WorkOverviewChapter {
   slug: string;
   position: number;
   status: ChapterStatus;
-  published: boolean | null;
   createdAt: Date;
   updatedAt: Date;
 }

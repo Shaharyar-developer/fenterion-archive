@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Suspense } from "react";
+import { ClientOnly } from "@/components/ui/client-only";
 
 export default async function Layout({
   children,
@@ -84,7 +85,9 @@ export default async function Layout({
         <SidebarProvider className="flex flex-col">
           <SiteHeader />
           <div className="flex flex-1">
-            <AppSidebar />
+            <ClientOnly>
+              <AppSidebar />
+            </ClientOnly>
             <SidebarInset>{children}</SidebarInset>
           </div>
         </SidebarProvider>

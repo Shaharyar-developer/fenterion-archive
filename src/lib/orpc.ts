@@ -250,6 +250,19 @@ export const getAllChaptersMetaByWorkId = authenticated
     return chapters;
   });
 
+export const getChapterMetaBySlug = authenticated
+  .input(z.object({ slug: z.string() }))
+  .handler(async ({ input }) => {
+    const chapter = await db.query.chapters.findFirst({
+      where: (chapter, { eq }) => eq(chapter.slug, input.slug),
+    });
+    if (!chapter) {
+      throw new ORPCError("NOT_FOUND");
+    } else {
+      return chapter;
+    }
+  });
+
 export const router = {
   user: {
     get: getUser,
@@ -270,6 +283,7 @@ export const router = {
     getAllMetaByWorkId: getAllChaptersMetaByWorkId,
     createDraft: createChapterDraft,
     update: updateChapter,
+    getMetaBySlug: getChapterMetaBySlug,
   },
   upload: {
     file: getUploadFileUrl,

@@ -8,11 +8,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { UserProfile } from "../user-profile";
 import Link from "next/link";
 import { useSelectedLayoutSegments } from "next/navigation";
+import { useEffect } from "react";
 
 export function DashboardFooter() {
   const { isPending, data } = userQuery();
   const router = useRouter();
-
+  useEffect(() => {
+  if (!isPending && !data) {
+    router.push(ROUTES.auth.signIn);
+  }
+}, [isPending, data, router]);
   if (isPending) {
     return (
       <div className="space-y-2">
@@ -27,7 +32,6 @@ export function DashboardFooter() {
   }
 
   if (!data) {
-    router.push(ROUTES.auth.signIn);
     return null;
   }
 

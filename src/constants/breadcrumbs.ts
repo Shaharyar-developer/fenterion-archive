@@ -16,18 +16,25 @@ export const dashboardBreadcrumbs: Record<string, BreadcrumbConfig> = {
     label: async ({ slug }) => {
       if (!slug) return "Unknown Work";
       const res = await client.work.getBySlug({ slug: slug });
-      const session = await authClient.getSession();
-      const userId = session.data?.user.id;
-      if (userId) {
-        return normalizeSlug(res.slug, userId);
-      }
-      return res.slug;
+
+      return res.title || "Unknown Work";
     },
     href: ({ slug }) => `/dashboard/works/${slug}`,
   },
   "/dashboard/works/[slug]/edit": { label: "Edit Work" },
   "/dashboard/works/[slug]/chapters": { label: "Chapters" },
-  "/dashboard/works/[slug]/chapters/[id]": {
-    label: ({ id }) => `Chapter ${id}`,
+  "/dashboard/works/[slug]/chapter/[chSlug]": {
+    label: async ({ chSlug, slug }) => {
+      if (!chSlug) {
+        return "Chapter";
+      }
+      const meta = await client.chapter.getMetaBySlug({
+        slug: chSlug,
+      });
+      return meta?.title || "Chapter";
+    },
+    href: ({ slug, chSlug }) => {
+      return `/dashboard/works/${slug}/chapter/${chSlug}`;
+    },
   },
 };
