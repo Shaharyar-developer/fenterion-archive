@@ -35,10 +35,7 @@ import {
 import {
   Settings2,
   X,
-  LayoutList,
   ListFilter,
-  ChevronsLeft,
-  ChevronsRight,
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";

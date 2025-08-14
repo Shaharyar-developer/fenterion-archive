@@ -55,6 +55,49 @@ export enum WorkType {
   FANFICTION = "fanfiction",
 }
 
+export enum CommentType {
+  GENERAL = "general",
+  SPOILER = "spoiler",
+  AUTHOR_NOTE = "author_note",
+}
+
+export enum MetricType {
+  VIEW = "view",
+  LIKE = "like",
+  COMPLETION = "completion",
+  COMMENT = "comment",
+}
+export enum ReviewRating {
+  ONE = "1",
+  TWO = "2",
+  THREE = "3",
+  FOUR = "4",
+  FIVE = "5",
+}
+
+export enum ProgressStatus {
+  STARTED = "started",
+  IN_PROGRESS = "in_progress",
+  COMPLETED = "completed",
+}
+
+export const commentTypeEnum = pgEnum(
+  "comment_type",
+  enumToPgEnum(CommentType)
+);
+
+export const progressStatusEnum = pgEnum(
+  "progress_status",
+  enumToPgEnum(ProgressStatus)
+);
+
+export const reviewRatingEnum = pgEnum(
+  "review_rating",
+  enumToPgEnum(ReviewRating)
+);
+
+export const metricTypeEnum = pgEnum("metric_type", enumToPgEnum(MetricType));
+
 export const userRoleEnum = pgEnum("user_role", enumToPgEnum(UserRole));
 export const workStatusEnum = pgEnum("work_status", enumToPgEnum(WorkStatus));
 export const workTypeEnum = pgEnum("work_type", enumToPgEnum(WorkType));
@@ -163,7 +206,6 @@ export const works = pgTable("works", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-
 export type Work = typeof works.$inferSelect;
 export type WorkInsert = typeof works.$inferInsert;
 export const workInsertSchema = createInsertSchema(works);
@@ -176,13 +218,17 @@ export const chapters = pgTable("chapters", {
     .notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 255 }).notNull(),
-  content: text("content").notNull(),
-  position: integer("position").notNull(),
+  content: text("content").notNull().default(""),
+  position: integer("position").generatedAlwaysAsIdentity().notNull().unique(),
   status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
   published: boolean("published").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const chapterInsertSchema = createInsertSchema(chapters);
+export type Chapter = typeof chapters.$inferSelect;
+export type ChapterInsert = typeof chapters.$inferInsert;
 
 // LIBRARY / FAVORITES
 export const libraryEntries = pgTable("library_entries", {
@@ -194,4 +240,65 @@ export const libraryEntries = pgTable("library_entries", {
     .references(() => works.id)
     .notNull(),
   addedAt: timestamp("added_at").defaultNow().notNull(),
+});
+
+export const comments = pgTable(
+  "comments",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .references(() => user.id)
+      .notNull(),
+    workId: text("work_id").references(() => works.id),
+    chapterId: text("chapter_id").references(() => chapters.id),
+    type: commentTypeEnum("type").default(CommentType.GENERAL).notNull(),
+    content: text("content").notNull(),
+    parentId: text("parent_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    {
+      columns: [table.parentId],
+      foreignColumns: [table.id],
+    },
+  ]
+);
+
+export const metrics = pgTable("metrics", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => user.id),
+  workId: text("work_id").references(() => works.id),
+  chapterId: text("chapter_id").references(() => chapters.id),
+  type: metricTypeEnum("type").notNull(),
+  value: integer("value").default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const reviews = pgTable("reviews", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => user.id)
+    .notNull(),
+  workId: text("work_id")
+    .references(() => works.id)
+    .notNull(),
+  rating: reviewRatingEnum("rating").notNull(),
+  content: text("content"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const readingProgress = pgTable("reading_progress", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => user.id)
+    .notNull(),
+  workId: text("work_id")
+    .references(() => works.id)
+    .notNull(),
+  lastChapterId: text("last_chapter_id").references(() => chapters.id),
+  status: progressStatusEnum("status")
+    .default(ProgressStatus.IN_PROGRESS)
+    .notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

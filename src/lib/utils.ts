@@ -94,3 +94,12 @@ export function getCoverKey(
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "") // Remove non-alphanumeric, non-space, non-dash
+    .replace(/[\s_-]+/g, "-") // Replace spaces/underscores with dash
+    .replace(/^-+|-+$/g, ""); // Trim leading/trailing dashes
+}

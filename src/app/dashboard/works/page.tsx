@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
+import { ClientOnly } from "@/components/ui/client-only";
 
 async function getData(userId: string): Promise<Work[]> {
   const res = await db.query.works.findMany({
@@ -23,7 +24,9 @@ export default async function DemoPage() {
 
   return (
     <div className="container mx-auto py-10 lg:px-12">
-      <DataTable columns={columns} data={data} />
+      <ClientOnly>
+        <DataTable columns={columns} data={data} />
+      </ClientOnly>
     </div>
   );
 }

@@ -67,3 +67,25 @@ export const userWorksQuery = () => {
     },
   });
 };
+
+export const userChaptersQuery = (workId: string) => {
+  return useQuery({
+    queryKey: ["userChapters", workId],
+    queryFn: async () => {
+      const session = await authClient.getSession();
+      if (!session || !session.data?.user) {
+        return [];
+      }
+      const userId = session.data?.user.id;
+      if (!userId) {
+        return [];
+      }
+
+      const chapters = await client.chapter.getAllMetaByWorkId({
+        workId,
+      });
+      return chapters;
+    },
+    enabled: !!workId,
+  });
+};

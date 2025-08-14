@@ -6,10 +6,12 @@ import { db } from "@/db";
 import {
   authorInsertSchema,
   authors,
+  chapterInsertSchema,
+  chapters,
   workInsertSchema,
   works,
 } from "@/db/schema";
-import { transformSlug } from "./utils";
+import { slugify, transformSlug } from "./utils";
 import { dataTagErrorSymbol } from "@tanstack/react-query";
 import { generatePresignedPutUrl, uploadToR2 } from "./minio";
 import { eq } from "drizzle-orm";
@@ -180,6 +182,74 @@ export const getUploadFileUrl = authenticated
     }
   });
 
+export const createChapterDraft = authenticated
+  .input(
+    chapterInsertSchema
+      .partial()
+      .extend({ workId: z.string(), title: z.string() })
+  )
+  .handler(async ({ input, context }) => {
+    const { workId, title } = input;
+    if (!context.session.user) {
+      throw new ORPCError("UNAUTHORIZED");
+    }
+    try {
+      await db.insert(chapters).values({
+        ...input,
+        id: nanoid(),
+        workId,
+        title,
+        slug: transformSlug(slugify(title), context.session.user.id),
+      });
+    } catch (error) {
+      console.error("Error creating chapter:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
+export const updateChapter = authenticated
+  .input(
+    chapterInsertSchema.partial().extend({ id: z.string(), workId: z.string() })
+  )
+  .handler(async ({ input, context }) => {
+    const { id, workId, title, slug, createdAt, ...updateFields } = input;
+    if (!context.session.user) {
+      throw new ORPCError("UNAUTHORIZED");
+    }
+    try {
+      const chapter = await db
+        .update(chapters)
+        .set({
+          ...updateFields,
+          updatedAt: new Date(),
+        })
+        .where(eq(chapters.id, id));
+      return chapter;
+    } catch (error) {
+      console.error("Error updating chapter:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
+export const getAllChaptersMetaByWorkId = authenticated
+  .input(z.object({ workId: z.string() }))
+  .handler(async ({ input }) => {
+    const chapters = await db.query.chapters.findMany({
+      where: (chapter, { eq }) => eq(chapter.workId, input.workId),
+      orderBy: (chapter, { asc }) => asc(chapter.position),
+      columns: {
+        id: true,
+        title: true,
+        slug: true,
+        position: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    return chapters;
+  });
+
 export const router = {
   user: {
     get: getUser,
@@ -195,6 +265,11 @@ export const router = {
     create: createWork,
     delete: deleteWork,
     update: updateWork,
+  },
+  chapter: {
+    getAllMetaByWorkId: getAllChaptersMetaByWorkId,
+    createDraft: createChapterDraft,
+    update: updateChapter,
   },
   upload: {
     file: getUploadFileUrl,

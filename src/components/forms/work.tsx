@@ -42,16 +42,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { TAGS } from "@/constants/tags";
 import { Button } from "../ui/button";
-
-// Utility function to convert title to slug
-function titleToSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "") // Remove non-alphanumeric, non-space, non-dash
-    .replace(/[\s_-]+/g, "-") // Replace spaces/underscores with dash
-    .replace(/^-+|-+$/g, ""); // Trim leading/trailing dashes
-}
+import { slugify } from "@/lib/utils";
 
 const CustomTagsSelect = (props: { isDisabled?: boolean }) => {
   const id = useId();
@@ -232,7 +223,7 @@ export const GenericWorkForm = ({
   useEffect(() => {
     if (!isSlugManuallyEdited) {
       if (titleValue) {
-        const generatedSlug = titleToSlug(titleValue);
+        const generatedSlug = slugify(titleValue);
         form.setValue("slug", generatedSlug);
       } else {
         form.setValue("slug", "");
