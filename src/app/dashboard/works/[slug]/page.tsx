@@ -9,14 +9,12 @@ import { ChapterProvider } from "@/providers/chapter";
 import { getQueryClient } from "@/lib/query-client";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { chapterAndVersionOptions } from "@/lib/queries";
-import { useChapter } from "@/hooks/use-chapter";
 
 export default async function Page({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { chapter } = useChapter();
   const { slug } = await params;
   const queryClient = getQueryClient();
   void (await queryClient.prefetchQuery(chapterAndVersionOptions(slug)));

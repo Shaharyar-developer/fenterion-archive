@@ -1,19 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Chapter, ChapterStatus, ChapterVersion } from "@/db/schema";
+import { ChapterVersion } from "@/db/schema";
 import { ChapterContent } from "@/components/blocks/editor/chapter-content";
 import { ChapterHeader } from "@/components/blocks/editor/chapter-header";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { cn } from "@/lib/utils";
-import { chapterVersionQuery } from "@/lib/queries";
+import { useChapter } from "@/hooks/use-chapter";
+import { useRouter } from "next/navigation";
 
-export function ChapterEditorView({ chapter }: { chapter: Chapter }) {
+export function ChapterEditorView() {
+  const router = useRouter();
   // Centralized editor state & save logic so header owns interactions
   const [content, setContent] = useState<ChapterVersion["content"] | null>(
     null
   );
-  const { isPending, data } = chapterVersionQuery(chapter.currentVersionId);
+  const { isPending, chapter, currentChapterVersion } = useChapter();
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -22,7 +24,6 @@ export function ChapterEditorView({ chapter }: { chapter: Chapter }) {
     "editorView:v1",
     "max-width"
   );
-
   const save = useCallback(async () => {
     if (saving) return;
     setSaving(true);
@@ -47,10 +48,14 @@ export function ChapterEditorView({ chapter }: { chapter: Chapter }) {
   }, [dirty, content, save]);
 
   useEffect(() => {
-    if (data && !content) {
-      setContent(data.content);
+    if (
+      typeof currentChapterVersion?.content !== "undefined" &&
+      !content &&
+      !isPending
+    ) {
+      setContent(currentChapterVersion.content);
     }
-  }, [isPending]);
+  }, [isPending, currentChapterVersion]);
 
   const handleContentChange = useCallback(
     (val: string) => {
@@ -60,6 +65,15 @@ export function ChapterEditorView({ chapter }: { chapter: Chapter }) {
     [dirty]
   );
 
+  useEffect(() => {
+    if (!isPending && !chapter) {
+    }
+  }, [isPending, chapter, router]);
+
+  if (!isPending && !chapter) {
+    return null;
+  }
+
   return (
     <div
       className={cn(
@@ -68,7 +82,7 @@ export function ChapterEditorView({ chapter }: { chapter: Chapter }) {
       )}
     >
       <ChapterHeader
-        chapter={chapter}
+        chapter={chapter || undefined}
         dirty={dirty}
         saving={saving}
         lastSavedAt={lastSavedAt}

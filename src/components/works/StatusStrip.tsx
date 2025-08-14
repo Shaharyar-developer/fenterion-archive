@@ -398,9 +398,7 @@ export function StatusStrip({
   };
 
   const handleCoverUpload = async (file: File) => {
-    console.log("handleCoverUpload called with file:", file);
     const coverKey = getCoverKey(file, work.slug, work.id);
-    console.log("Generated coverKey:", coverKey);
     if (!coverKey) {
       toast.error("Invalid cover file");
       console.error("Invalid cover file or coverKey generation failed");
@@ -411,7 +409,6 @@ export function StatusStrip({
         bucketName: BUCKET_NAME,
         objectName: coverKey,
       });
-      console.log("Received upload URL:", url);
       if (!url) {
         toast.error("Failed to get upload URL");
         console.error("Failed to get upload URL");
@@ -425,7 +422,6 @@ export function StatusStrip({
           },
           body: file,
         });
-        console.log("Cover image uploaded successfully");
 
         await client.work.update({
           id: work.id,
@@ -434,7 +430,6 @@ export function StatusStrip({
         await sleep(1000);
         window.location.reload();
       } catch (error) {
-        console.error("Error uploading cover image:", error);
         toast.error("Failed to upload cover image. Please try again.");
         return;
       }

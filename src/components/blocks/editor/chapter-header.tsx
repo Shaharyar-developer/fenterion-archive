@@ -33,7 +33,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { client } from "@/lib/orpc.client";
 
 interface ChapterHeaderProps {
-  chapter: Chapter;
+  chapter?: Chapter;
   dirty?: boolean;
   saving?: boolean;
   lastSavedAt?: Date | null;
@@ -51,8 +51,36 @@ export function ChapterHeader({
   viewMode,
   setViewMode,
 }: ChapterHeaderProps) {
-  const [title, setTitle] = useState(chapter.title);
-  const [status, setStatus] = useState<ChapterStatus>(chapter.status);
+  // If chapter is undefined, render a skeleton/loading state
+  if (!chapter) {
+    return (
+      <div className="sticky top-12 z-30 w-full bg-background/80 shadow-sm px-3 py-2 md:px-6 md:py-3 animate-pulse">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-start gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="h-7 w-2/3 bg-muted rounded mb-2" />
+            </div>
+            <div className="flex items-center gap-2 md:gap-3 pl-2">
+              <div className="h-6 w-16 bg-muted rounded" />
+              <div className="h-6 w-16 bg-muted rounded" />
+              <div className="h-6 w-10 bg-muted rounded" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground/80 px-1 mt-1">
+            <div className="h-4 w-24 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const [title, setTitle] = useState(chapter?.title);
+  const [status, setStatus] = useState<ChapterStatus | undefined>(
+    chapter?.status
+  );
+
+  // fallback to DRAFT if status is undefined for safe access
+  const safeStatus: ChapterStatus = status ?? ChapterStatus.DRAFT;
   const [editingTitle, setEditingTitle] = useState(false);
   const [savingTitle, setSavingTitle] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -279,7 +307,7 @@ export function ChapterHeader({
                       layoutId="chapter-status-dot"
                       className={cn(
                         "size-2 rounded-full",
-                        statusColor[status],
+                        statusColor[safeStatus],
                         "shadow-inner"
                       )}
                       initial={{ scale: 0.6, opacity: 0 }}
@@ -295,15 +323,15 @@ export function ChapterHeader({
                     />
                     <motion.span layout className="flex">
                       <Badge
-                        variant={statusMeta[status].variant as any}
+                        variant={statusMeta[safeStatus].variant as any}
                         className={cn(
                           "text-[11px] px-2 py-0.5 border bg-transparent leading-none",
-                          status === ChapterStatus.DRAFT &&
+                          safeStatus === ChapterStatus.DRAFT &&
                             "border-amber-500/40 text-amber-700 dark:text-amber-300",
-                          status === ChapterStatus.ARCHIVED && "opacity-70"
+                          safeStatus === ChapterStatus.ARCHIVED && "opacity-70"
                         )}
                       >
-                        {statusMeta[status].label}
+                        {statusMeta[safeStatus].label}
                       </Badge>
                     </motion.span>
                     <ChevronDown className="size-3 opacity-60" />

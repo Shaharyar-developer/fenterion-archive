@@ -15,28 +15,37 @@ export const ChapterProvider = ({
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [currentChapterVersion, setCurrentChapterVersion] =
     useState<ChapterVersion | null>(null);
-  const { data: chapterData, isPending: dataIsPending } =
-    useChapterAndVersionsQuery(chapterSlug);
+  const [prevChapterVersions, setPrevChapterVersions] = useState<
+    ChapterVersion[]
+  >([]);
+  const { data, isPending } = useChapterAndVersionsQuery(chapterSlug);
 
   useEffect(() => {
-    if (!dataIsPending && chapterData) {
-      setChapter(chapterData.chapter);
+    if (!isPending && data) {
+      setChapter(data.chapter);
       setCurrentChapterVersion(
-        chapterData.versions.find(
-          (v) => v.id === chapterData.chapter.currentVersionId
-        ) || null
+        data.versions.find((v) => v.id === data.chapter.currentVersionId) ||
+          null
+      );
+      setPrevChapterVersions(
+        data.versions.filter((v) => v.id !== data.chapter.currentVersionId)
       );
     }
-  }, [dataIsPending, chapterData]);
+  }, [isPending, data]);
+
+  useEffect(() => {
+    console.log("ChapterProvider: chapter", currentChapterVersion);
+  }, [currentChapterVersion]);
 
   return (
     <ChapterContext.Provider
       value={{
         chapter,
         currentChapterVersion,
+        prevChapterVersions,
         setChapter,
         setCurrentChapterVersion,
-        isPending: dataIsPending,
+        isPending: isPending,
       }}
     >
       {children}

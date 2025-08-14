@@ -142,7 +142,6 @@ export function CreateWorkForm(props: {
           bucketName: BUCKET_NAME,
           objectName: coverKey,
         });
-        console.log("Uploading cover image to:", url);
         try {
           await fetch(url, {
             method: "PUT",
@@ -152,7 +151,6 @@ export function CreateWorkForm(props: {
             body: data.cover,
           });
         } catch (error) {
-          console.error("Error uploading cover image:", error);
           toast.error("Failed to upload cover image. Please try again.");
           return;
         }

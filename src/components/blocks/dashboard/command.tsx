@@ -47,7 +47,6 @@ export function DashboardCommandMenu() {
 
   useEffect(() => {
     if (!isPending && data?.id && !isWorksPending) {
-      console.log(worksData);
       setWorks(worksData || []);
     }
   }, [isPending, isWorksPending]);
