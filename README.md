@@ -48,3 +48,14 @@ bun install
 # Run dev server
 bun dev
 ```
+
+## TODO
+1. Implement usage of R2 for chapter content.
+2. Chapter deletion dialog.
+3. Chapter reordering.
+4. Option to un-publish work.
+5. Check scrollability on chapter list.
+6. Implement home page.
+7. Implement home page functionality.
+8. Implement library page.
+9. Implement user profile page.
