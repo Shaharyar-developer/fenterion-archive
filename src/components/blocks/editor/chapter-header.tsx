@@ -31,6 +31,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "motion/react";
 import { client } from "@/lib/orpc.client";
+import { toast } from "sonner";
+import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
 
 interface ChapterHeaderProps {
   chapter?: Chapter;
@@ -38,8 +40,6 @@ interface ChapterHeaderProps {
   saving?: boolean;
   lastSavedAt?: Date | null;
   onSave?: () => void | Promise<void>;
-  viewMode?: "readable" | "max-width";
-  setViewMode?: (mode: "readable" | "max-width") => void;
 }
 
 export function ChapterHeader({
@@ -48,8 +48,6 @@ export function ChapterHeader({
   saving,
   lastSavedAt,
   onSave,
-  viewMode,
-  setViewMode,
 }: ChapterHeaderProps) {
   // If chapter is undefined, render a skeleton/loading state
   if (!chapter) {
@@ -78,33 +76,67 @@ export function ChapterHeader({
   const [status, setStatus] = useState<ChapterStatus | undefined>(
     chapter?.status
   );
-
   // fallback to DRAFT if status is undefined for safe access
   const safeStatus: ChapterStatus = status ?? ChapterStatus.DRAFT;
   const [editingTitle, setEditingTitle] = useState(false);
   const [savingTitle, setSavingTitle] = useState(false);
+  const [pendingTitle, setPendingTitle] = useState<string | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const [_, __, fetch] = useBreadcrumbs();
 
   useEffect(() => {
     setTitle(chapter.title);
     setStatus(chapter.status);
   }, [chapter.id, chapter.title, chapter.status]);
 
-  const persistTitle = useCallback(async () => {
-    if (title.trim() === "" || title === chapter.title) {
+  // Improved persistTitle to queue saves if user types fast
+  const persistTitle = useCallback(
+    async (overrideTitle?: string) => {
+      const currentTitle = overrideTitle ?? title;
+      if (currentTitle.trim() === "" || currentTitle === chapter.title) {
+        setEditingTitle(false);
+        setTitle((t) => t || chapter.title);
+        setPendingTitle(null);
+        return;
+      }
+      if (savingTitle) {
+        setPendingTitle(currentTitle);
+        return;
+      }
+      setSavingTitle(true);
+      try {
+        await client.chapter.update({
+          id: chapter.id,
+          title: currentTitle.trim(),
+          workId: chapter.workId,
+        });
+        toast.success("Chapter title saved.");
+        await fetch();
+      } catch (error) {
+        toast.error("Failed to save chapter title.");
+        setTitle(chapter.title);
+      }
+      setSavingTitle(false);
       setEditingTitle(false);
-      setTitle((t) => t || chapter.title);
-      return;
-    }
-    setSavingTitle(true);
-    await client.chapter.update({
-      id: chapter.id,
-      title: title.trim(),
-      workId: chapter.workId,
-    });
-    setSavingTitle(false);
-    setEditingTitle(false);
-  }, [title, chapter.title]);
+      // If a new title was queued while saving, persist it now
+      if (pendingTitle && pendingTitle !== currentTitle) {
+        const next = pendingTitle;
+        setPendingTitle(null);
+        void persistTitle(next);
+      } else {
+        setPendingTitle(null);
+      }
+    },
+    [
+      title,
+      chapter.title,
+      chapter.id,
+      chapter.workId,
+      savingTitle,
+      fetch,
+      pendingTitle,
+    ]
+  );
 
   const statusMeta: Record<ChapterStatus, { label: string; variant: string }> =
     {
@@ -115,8 +147,23 @@ export function ChapterHeader({
 
   const changeStatus = async (next: ChapterStatus) => {
     if (next === status) return;
-    setStatus(next);
-    // TODO: mutation to persist status
+    toast.info(`Confirm status change to ${statusMeta[next].label}?`, {
+      action: {
+        label: "Confirm",
+        onClick: async () => {
+          try {
+            await client.chapter.update({
+              id: chapter.id,
+              workId: chapter.workId,
+              status: next,
+            });
+            setStatus(next);
+          } catch (error) {
+            toast.error(`Failed to change status.`);
+          }
+        },
+      },
+    });
   };
 
   // Keyboard UX for title edit
@@ -154,8 +201,6 @@ export function ChapterHeader({
     <TooltipProvider delayDuration={150}>
       <motion.div
         layout
-        data-viewmode={viewMode}
-        animate={viewMode}
         variants={{
           readable: { paddingLeft: 0, paddingRight: 0 },
           "max-width": { paddingLeft: 0, paddingRight: 0 },
@@ -363,7 +408,7 @@ export function ChapterHeader({
                     className="text-[10px] uppercase tracking-wide font-medium px-2 py-0.5 h-6 flex items-center"
                     aria-label={`Chapter position ${chapter.position}`}
                   >
-                    Pos {chapter.position}
+                    Position {chapter.position}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>Chapter order position</TooltipContent>

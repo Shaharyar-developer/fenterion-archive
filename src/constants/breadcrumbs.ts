@@ -1,5 +1,4 @@
 import { client } from "@/lib/orpc.client";
-import { authClient, normalizeSlug } from "@/lib/utils";
 
 type BreadcrumbConfig = {
   label:

@@ -43,3 +43,16 @@ type ChapterContextType = {
 export const ChapterContext = createContext<ChapterContextType | undefined>(
   undefined
 );
+
+type BreadcrumbsContextType = {
+  breadcrumbs: { label: string; href?: string }[];
+  setBreadcrumbs: React.Dispatch<
+    React.SetStateAction<{ label: string; href?: string }[]>
+  >;
+  refetchBreadcrumbs: () => Promise<void>;
+  isPending?: boolean;
+};
+
+export const BreadcrumbsContext = createContext<
+  BreadcrumbsContextType | undefined
+>(undefined);

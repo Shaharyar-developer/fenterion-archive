@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/providers/theme";
 import QueryProviders from "@/providers/query";
 import { Toaster } from "@/components/ui/sonner";
 import { Navbar } from "@/components/blocks/app-navbar";
+import { BreadcrumbsProvider } from "@/providers/breadcrumbs";
 
 const firaSans = Fira_Sans({
   variable: "--font-fira-sans",
@@ -34,16 +35,18 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${firaSans.variable} ${firaMono.variable}`}>
         <QueryProviders>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <Navbar />
-            {children}
-            <Toaster position="top-center" richColors />
-          </ThemeProvider>
+          <BreadcrumbsProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <Navbar />
+              {children}
+              <Toaster position="top-center" />
+            </ThemeProvider>
+          </BreadcrumbsProvider>
         </QueryProviders>
       </body>
     </html>
