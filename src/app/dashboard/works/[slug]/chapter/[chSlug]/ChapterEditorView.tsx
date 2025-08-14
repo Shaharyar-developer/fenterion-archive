@@ -1,28 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChapterStatus } from "@/db/schema";
+import { Chapter, ChapterStatus, ChapterVersion } from "@/db/schema";
 import { ChapterContent } from "@/components/blocks/editor/chapter-content";
 import { ChapterHeader } from "@/components/blocks/editor/chapter-header";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { cn } from "@/lib/utils";
+import { chapterVersionQuery } from "@/lib/queries";
 
-interface ChapterEditorViewProps {
-  chapter: {
-    id: string;
-    title: string;
-    slug: string;
-    content: string;
-    status: ChapterStatus;
-    position: number;
-    createdAt: Date;
-    updatedAt: Date;
-  };
-}
-
-export function ChapterEditorView({ chapter }: ChapterEditorViewProps) {
+export function ChapterEditorView({ chapter }: { chapter: Chapter }) {
   // Centralized editor state & save logic so header owns interactions
-  const [content, setContent] = useState(chapter.content);
+  const [content, setContent] = useState<ChapterVersion["content"] | null>(
+    null
+  );
+  const { isPending, data } = chapterVersionQuery(chapter.currentVersionId);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -49,10 +40,17 @@ export function ChapterEditorView({ chapter }: ChapterEditorViewProps) {
     autosaveTimer.current = setTimeout(() => {
       void save();
     }, 5000);
+
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
   }, [dirty, content, save]);
+
+  useEffect(() => {
+    if (data && !content) {
+      setContent(data.content);
+    }
+  }, [isPending]);
 
   const handleContentChange = useCallback(
     (val: string) => {

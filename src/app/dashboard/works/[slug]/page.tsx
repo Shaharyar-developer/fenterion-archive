@@ -38,21 +38,17 @@ export default async function Page({
   }
 
   const workChapters = await db
-    .select({
-      id: chapters.id,
-      title: chapters.title,
-      slug: chapters.slug,
-      position: chapters.position,
-      status: chapters.status,
-      published: chapters.published,
-      createdAt: chapters.createdAt,
-      updatedAt: chapters.updatedAt,
-    })
+    .select()
     .from(chapters)
     .where(eq(chapters.workId, work.id))
     .orderBy(chapters.position);
 
   const coverUrl = work.coverKey ? getCoverUrl(work.coverKey) : null;
 
-  return <WorkOverview work={{ ...work, coverUrl }} chapters={workChapters} />;
+  return (
+    <WorkOverview
+      work={{ ...work, coverUrl, content: "" }}
+      chapters={workChapters}
+    />
+  );
 }

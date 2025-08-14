@@ -68,7 +68,7 @@ export const userWorksQuery = () => {
   });
 };
 
-export const userChaptersQuery = (workId: string) => {
+export const chaptersQuery = (workId: string) => {
   return useQuery({
     queryKey: ["userChapters", workId],
     queryFn: async () => {
@@ -87,5 +87,27 @@ export const userChaptersQuery = (workId: string) => {
       return chapters;
     },
     enabled: !!workId,
+  });
+};
+
+export const chapterVersionQuery = (versionId: string) => {
+  return useQuery({
+    queryKey: ["chapterVersion", versionId],
+    queryFn: async () => {
+      const session = await authClient.getSession();
+      if (!session || !session.data?.user) {
+        return null;
+      }
+      const userId = session.data?.user.id;
+      if (!userId) {
+        return null;
+      }
+
+      const chapterVersion = await client.chapter.getVersionById({
+        id: versionId,
+      });
+      return chapterVersion || null;
+    },
+    enabled: !!versionId,
   });
 };

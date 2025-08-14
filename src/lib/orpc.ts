@@ -8,6 +8,8 @@ import {
   authors,
   chapterInsertSchema,
   chapters,
+  ChapterStatus,
+  chapterVersions,
   workInsertSchema,
   works,
 } from "@/db/schema";
@@ -194,13 +196,26 @@ export const createChapterDraft = authenticated
       throw new ORPCError("UNAUTHORIZED");
     }
     try {
+      const chapterId = nanoid();
+      const currentVersionId = nanoid();
+      // 1. Insert chapter first
       await db.insert(chapters).values({
         ...input,
-        id: nanoid(),
+        currentVersionId,
+        id: chapterId,
         workId,
-        title,
         slug: transformSlug(slugify(title), context.session.user.id),
       });
+      // 2. Now insert chapterVersion referencing the new chapter
+      await db.insert(chapterVersions).values({
+        id: currentVersionId,
+        chapterId,
+      });
+      // 3. Optionally update chapter with currentVersionId if needed
+      await db
+        .update(chapters)
+        .set({ currentVersionId })
+        .where(eq(chapters.id, chapterId));
     } catch (error) {
       console.error("Error creating chapter:", error);
       throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -209,10 +224,17 @@ export const createChapterDraft = authenticated
 
 export const updateChapter = authenticated
   .input(
-    chapterInsertSchema.partial().extend({ id: z.string(), workId: z.string() })
+    z.object({
+      id: z.string(),
+      workId: z.string(),
+      title: z.string().optional(),
+      content: z.string().optional(),
+      status: z.enum(ChapterStatus).optional(),
+      published: z.boolean().optional(),
+    })
   )
   .handler(async ({ input, context }) => {
-    const { id, workId, title, slug, createdAt, ...updateFields } = input;
+    const { id, workId, ...updateFields } = input;
     if (!context.session.user) {
       throw new ORPCError("UNAUTHORIZED");
     }
@@ -239,10 +261,9 @@ export const getAllChaptersMetaByWorkId = authenticated
       orderBy: (chapter, { asc }) => asc(chapter.position),
       columns: {
         id: true,
-        title: true,
+        workId: true,
         slug: true,
         position: true,
-        status: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -261,6 +282,28 @@ export const getChapterMetaBySlug = authenticated
     } else {
       return chapter;
     }
+  });
+
+export const getChapterVersionById = authenticated
+  .input(z.object({ id: z.string() }))
+  .handler(async ({ input }) => {
+    const chapterVersion = await db.query.chapterVersions.findFirst({
+      where: (chapterVersion, { eq }) => eq(chapterVersion.id, input.id),
+    });
+    if (!chapterVersion) {
+      throw new ORPCError("NOT_FOUND");
+    } else {
+      return chapterVersion;
+    }
+  });
+
+export const getAllChapterVersionsByChapterId = authenticated
+  .input(z.object({ chapterId: z.string() }))
+  .handler(async ({ input }) => {
+    const chapterVersions = await db.query.chapterVersions.findMany({
+      where: (chapterVersion, { eq }) => eq(chapterVersion.id, input.chapterId),
+    });
+    return chapterVersions;
   });
 
 export const router = {
@@ -284,6 +327,7 @@ export const router = {
     createDraft: createChapterDraft,
     update: updateChapter,
     getMetaBySlug: getChapterMetaBySlug,
+    getVersionById: getChapterVersionById,
   },
   upload: {
     file: getUploadFileUrl,

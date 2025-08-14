@@ -1,4 +1,5 @@
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { relations } from "drizzle-orm";
 import {
   pgTable,
   varchar,
@@ -9,6 +10,7 @@ import {
   jsonb,
   pgEnum,
   customType,
+  serial,
 } from "drizzle-orm/pg-core";
 
 const bytea = customType<{
@@ -216,19 +218,36 @@ export const chapters = pgTable("chapters", {
   workId: text("work_id")
     .references(() => works.id)
     .notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
+  position: integer("position").generatedAlwaysAsIdentity(), // Order in the work
   slug: varchar("slug", { length: 255 }).notNull(),
-  content: text("content").notNull().default(""),
-  position: integer("position").generatedAlwaysAsIdentity().notNull().unique(),
-  status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
-  published: boolean("published").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  currentVersionId: text("current_version_id").notNull(),
+  status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
 });
 
 export const chapterInsertSchema = createInsertSchema(chapters);
 export type Chapter = typeof chapters.$inferSelect;
 export type ChapterInsert = typeof chapters.$inferInsert;
+
+// CHAPTER VERSIONS (immutable snapshots)
+export const chapterVersions = pgTable("chapter_versions", {
+  id: text("id").primaryKey(), // UUID
+  chapterId: text("chapter_id")
+    .references(() => chapters.id, { onDelete: "cascade" })
+    .notNull(),
+  versionNumber: integer("version_number")
+    .generatedAlwaysAsIdentity()
+    .notNull(),
+  content: text("content").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type ChapterVersion = typeof chapterVersions.$inferSelect;
+export type ChapterVersionInsert = typeof chapterVersions.$inferInsert;
+export const chapterVersionInsertSchema = createInsertSchema(chapterVersions);
 
 // LIBRARY / FAVORITES
 export const libraryEntries = pgTable("library_entries", {
@@ -255,24 +274,7 @@ export const reviews = pgTable("reviews", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// CHAPTER VERSIONS (immutable snapshots)
-export const chapterVersions = pgTable("chapter_versions", {
-  id: text("id").primaryKey(), // UUID
-  chapterId: text("chapter_id")
-    .references(() => chapters.id, { onDelete: "cascade" })
-    .notNull(),
-  versionNumber: integer("version_number").notNull(), // increment for each edit
-  title: varchar("title", { length: 255 }).notNull(),
-  content: text("content").notNull().default(""),
-  status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
-  published: boolean("published").default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Update references in dependent tables:
-
-// Comments can point to a chapter OR a specific version
+// Comments point to a work or chapter
 export const comments = pgTable(
   "comments",
   {
@@ -282,9 +284,6 @@ export const comments = pgTable(
       .notNull(),
     workId: text("work_id").references(() => works.id),
     chapterId: text("chapter_id").references(() => chapters.id),
-    chapterVersionId: text("chapter_version_id").references(
-      () => chapterVersions.id
-    ),
     type: commentTypeEnum("type").default(CommentType.GENERAL).notNull(),
     content: text("content").notNull(),
     parentId: text("parent_id"),
@@ -299,15 +298,12 @@ export const comments = pgTable(
   ]
 );
 
-// Metrics — if tied to a specific published version
+// Metrics for works and chapters
 export const metrics = pgTable("metrics", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => user.id),
   workId: text("work_id").references(() => works.id),
   chapterId: text("chapter_id").references(() => chapters.id),
-  chapterVersionId: text("chapter_version_id").references(
-    () => chapterVersions.id
-  ),
   type: metricTypeEnum("type").notNull(),
   value: integer("value").default(1),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -328,3 +324,80 @@ export const readingProgress = pgTable("reading_progress", {
     .notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// RELATIONS
+export const chaptersRelations = relations(chapters, ({ one, many }) => ({
+  work: one(works, {
+    fields: [chapters.workId],
+    references: [works.id],
+  }),
+  versions: many(chapterVersions),
+  currentVersion: one(chapterVersions, {
+    fields: [chapters.currentVersionId],
+    references: [chapterVersions.id],
+  }),
+  comments: many(comments),
+  metrics: many(metrics),
+}));
+
+export const chapterVersionsRelations = relations(
+  chapterVersions,
+  ({ one }) => ({
+    chapter: one(chapters, {
+      fields: [chapterVersions.chapterId],
+      references: [chapters.id],
+    }),
+  })
+);
+
+export const worksRelations = relations(works, ({ one, many }) => ({
+  author: one(authors, {
+    fields: [works.authorId],
+    references: [authors.userId],
+  }),
+  chapters: many(chapters),
+  comments: many(comments),
+  reviews: many(reviews),
+  libraryEntries: many(libraryEntries),
+  metrics: many(metrics),
+  readingProgress: many(readingProgress),
+}));
+
+export const authorsRelations = relations(authors, ({ one, many }) => ({
+  user: one(user, {
+    fields: [authors.userId],
+    references: [user.id],
+  }),
+  works: many(works),
+}));
+
+export const userRelations = relations(user, ({ one, many }) => ({
+  author: one(authors),
+  sessions: many(session),
+  accounts: many(account),
+  comments: many(comments),
+  reviews: many(reviews),
+  libraryEntries: many(libraryEntries),
+  metrics: many(metrics),
+  readingProgress: many(readingProgress),
+}));
+
+export const commentsRelations = relations(comments, ({ one, many }) => ({
+  user: one(user, {
+    fields: [comments.userId],
+    references: [user.id],
+  }),
+  work: one(works, {
+    fields: [comments.workId],
+    references: [works.id],
+  }),
+  chapter: one(chapters, {
+    fields: [comments.chapterId],
+    references: [chapters.id],
+  }),
+  parent: one(comments, {
+    fields: [comments.parentId],
+    references: [comments.id],
+  }),
+  replies: many(comments),
+}));

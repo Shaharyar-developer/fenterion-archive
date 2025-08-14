@@ -17,7 +17,7 @@ interface FontPickerProps {
 
 export default function FontPicker({
   targetClass,
-  defaultFont = "Roboto",
+  defaultFont = "Fira Mono",
   width = "240px",
   height = "300px",
   className,

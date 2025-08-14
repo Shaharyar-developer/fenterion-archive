@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChapterStatus } from "@/db/schema";
+import { Chapter, ChapterStatus, ChapterVersion } from "@/db/schema";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,17 +30,10 @@ import {
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "motion/react";
+import { client } from "@/lib/orpc.client";
 
 interface ChapterHeaderProps {
-  chapter: {
-    id: string;
-    title: string;
-    slug: string;
-    status: ChapterStatus;
-    position: number;
-    createdAt: Date;
-    updatedAt: Date;
-  };
+  chapter: Chapter;
   dirty?: boolean;
   saving?: boolean;
   lastSavedAt?: Date | null;
@@ -76,8 +69,11 @@ export function ChapterHeader({
       return;
     }
     setSavingTitle(true);
-    // TODO: call mutation to save title
-    await new Promise((r) => setTimeout(r, 500));
+    await client.chapter.update({
+      id: chapter.id,
+      title: title.trim(),
+      workId: chapter.workId,
+    });
     setSavingTitle(false);
     setEditingTitle(false);
   }, [title, chapter.title]);

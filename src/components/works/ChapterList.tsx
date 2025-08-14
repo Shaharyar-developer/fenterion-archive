@@ -16,7 +16,7 @@ import z from "zod";
 import { useAsyncAction } from "@/hooks/use-async-action";
 import { client } from "@/lib/orpc.client";
 import { useRouter } from "next/navigation";
-import { userChaptersQuery } from "@/lib/queries";
+import { chaptersQuery } from "@/lib/queries";
 import { Skeleton } from "../ui/skeleton";
 import {
   Tooltip,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/tooltip";
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
+import { Chapter, Work } from "@/db/schema";
 
 // Utility: lightweight relative time (minutes, hours, days, months)
 function formatRelativeTime(date: Date | null | undefined) {
@@ -46,16 +47,9 @@ function formatRelativeTime(date: Date | null | undefined) {
   return `${years}y ago`;
 }
 
-export function ChapterList({
-  work,
-  chapters,
-}: {
-  work: WorkOverviewWork;
-  chapters: WorkOverviewChapter[];
-}) {
+export function ChapterList({ work, chapters }: { work: Work; chapters: Chapter[] }) {
   const { loading, run } = useAsyncAction();
   const router = useRouter();
-  const { data, isPending: _isPending } = userChaptersQuery(work.id);
 
   const handleSubmit = async (data: z.infer<typeof formSchema>) => {
     const title = data.title.trim();
@@ -64,10 +58,11 @@ export function ChapterList({
         workId: work.id,
         title,
       });
+      router.push(ROUTES.dashboard.works.bySlugChapter(work.slug, title));
     });
   };
 
-  const isPending = _isPending || loading;
+  const isPending = loading;
 
   return (
     <Card className="h-full">
@@ -112,7 +107,7 @@ export function ChapterList({
               // Wrap list in TooltipProvider so individual items can show tooltips
               <TooltipProvider delayDuration={150}>
                 <ul className="divide-y">
-                  {data?.map((ch) => (
+                  {chapters.map((ch) => (
                     <ChapterRow key={ch.id} work={work} chapter={ch} />
                   ))}
                 </ul>
@@ -128,13 +123,7 @@ export function ChapterList({
   );
 }
 
-function ChapterRow({
-  work,
-  chapter,
-}: {
-  work: WorkOverviewWork;
-  chapter: WorkOverviewChapter;
-}) {
+function ChapterRow({ work, chapter }: { work: Work; chapter: Chapter }) {
   const meta = CHAPTER_STATUS_META[chapter.status];
   const createdAt = chapter.createdAt ? new Date(chapter.createdAt) : null;
   const updatedAt = chapter.updatedAt ? new Date(chapter.updatedAt) : null;

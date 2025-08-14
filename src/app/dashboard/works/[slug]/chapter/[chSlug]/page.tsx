@@ -16,16 +16,6 @@ export default async function Page({
     where(fields, operators) {
       return operators.eq(fields.slug, chSlug);
     },
-    columns: {
-      id: true,
-      title: true,
-      slug: true,
-      content: true,
-      status: true,
-      position: true,
-      createdAt: true,
-      updatedAt: true,
-    },
   });
 
   if (!chapter) {
@@ -38,6 +28,3 @@ export default async function Page({
     </ClientOnly>
   );
 }
-
-// client view imported above
-

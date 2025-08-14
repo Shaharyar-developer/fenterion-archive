@@ -3,9 +3,12 @@
 import MDEditor from "@/components/blocks/editor/main";
 import { ChapterMetaFooter } from "@/components/blocks/editor/chapter-meta-footer";
 import { useState } from "react";
+import { Editor } from "@tiptap/react";
+import { Skeleton } from "@/components/ui/skeleton";
+import Spinner from "@/components/ui/spinner";
 
 interface ChapterContentProps {
-  content: string;
+  content: string | null;
   onChange: (value: string) => void;
   viewMode: "readable" | "max-width";
   setViewMode: (mode: "readable" | "max-width") => void;
@@ -18,19 +21,23 @@ export function ChapterContent({
   viewMode,
   setViewMode,
 }: ChapterContentProps) {
-  const [editor, setEditor] = useState<any>(null);
-
-  const wordCount = content.split(" ").filter(Boolean).length;
+  const [editor, setEditor] = useState<Editor | null>(null);
 
   return (
     <div className="flex flex-col bg-card/75 rounded-t-3xl w-full h-full">
       <div className="relative h-full overflow-auto w-full">
-        <MDEditor
-          className="h-full"
-          content={content}
-          onChange={onChange}
-          onReady={(e) => setEditor(e)}
-        />
+        {content === null ? (
+          <div className="flex items-center justify-center h-full">
+            <Spinner className="size-20" />
+          </div>
+        ) : (
+          <MDEditor
+            className="h-full"
+            content={content}
+            onChange={onChange}
+            onReady={(e) => setEditor(e)}
+          />
+        )}
       </div>
       <ChapterMetaFooter
         viewMode={viewMode}
