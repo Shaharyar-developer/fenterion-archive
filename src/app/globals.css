@@ -6,6 +6,8 @@
 
 :root {
   --radius: 1.25rem;
+  /* Editor font variable (dynamic via FontPicker) */
+  --editor-font: "Fira Mono", monospace;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -134,4 +136,18 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Dedicated editor container font binding */
+  .md-editor {
+    font-family: var(--editor-font) !important; /* override prose defaults */
+  }
+  .md-editor * {
+    font-family: inherit !important; /* ensure children inherit (prose resets) */
+  }
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  pointer-events: none;
+  height: 0;
+  @apply text-muted-foreground text-lg;
+}
 }

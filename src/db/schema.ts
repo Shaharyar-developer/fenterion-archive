@@ -242,6 +242,37 @@ export const libraryEntries = pgTable("library_entries", {
   addedAt: timestamp("added_at").defaultNow().notNull(),
 });
 
+export const reviews = pgTable("reviews", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => user.id)
+    .notNull(),
+  workId: text("work_id")
+    .references(() => works.id)
+    .notNull(),
+  rating: reviewRatingEnum("rating").notNull(),
+  content: text("content"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// CHAPTER VERSIONS (immutable snapshots)
+export const chapterVersions = pgTable("chapter_versions", {
+  id: text("id").primaryKey(), // UUID
+  chapterId: text("chapter_id")
+    .references(() => chapters.id, { onDelete: "cascade" })
+    .notNull(),
+  versionNumber: integer("version_number").notNull(), // increment for each edit
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull().default(""),
+  status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
+  published: boolean("published").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Update references in dependent tables:
+
+// Comments can point to a chapter OR a specific version
 export const comments = pgTable(
   "comments",
   {
@@ -251,6 +282,9 @@ export const comments = pgTable(
       .notNull(),
     workId: text("work_id").references(() => works.id),
     chapterId: text("chapter_id").references(() => chapters.id),
+    chapterVersionId: text("chapter_version_id").references(
+      () => chapterVersions.id
+    ),
     type: commentTypeEnum("type").default(CommentType.GENERAL).notNull(),
     content: text("content").notNull(),
     parentId: text("parent_id"),
@@ -265,29 +299,21 @@ export const comments = pgTable(
   ]
 );
 
+// Metrics — if tied to a specific published version
 export const metrics = pgTable("metrics", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => user.id),
   workId: text("work_id").references(() => works.id),
   chapterId: text("chapter_id").references(() => chapters.id),
+  chapterVersionId: text("chapter_version_id").references(
+    () => chapterVersions.id
+  ),
   type: metricTypeEnum("type").notNull(),
   value: integer("value").default(1),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const reviews = pgTable("reviews", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .references(() => user.id)
-    .notNull(),
-  workId: text("work_id")
-    .references(() => works.id)
-    .notNull(),
-  rating: reviewRatingEnum("rating").notNull(),
-  content: text("content"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
+// Reading progress still tracks chapters, not versions, for simplicity
 export const readingProgress = pgTable("reading_progress", {
   id: text("id").primaryKey(),
   userId: text("user_id")
