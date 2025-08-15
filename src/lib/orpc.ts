@@ -29,7 +29,7 @@ import { BUCKET_NAME } from "@/constants/misc";
 
 function ensureFound<T>(entity: T | null): T {
   if (!entity) {
-    throw new ORPCError("NOT_FOUND");
+    throw new ORPCError("NOT_FOUND", { message: "Entity not found" });
   }
   return entity;
 }
@@ -38,7 +38,9 @@ const authenticated = os
   .$context<{ session: Session | null }>()
   .use(({ context, next }) => {
     if (!context.session) {
-      throw new ORPCError("UNAUTHORIZED");
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
     }
     return next({ context: { session: context.session } });
   });
@@ -254,7 +256,9 @@ export const getUploadFileUrl = authenticated
   .handler(async ({ input }) => {
     const { bucketName, objectName } = input;
     if (!bucketName || !objectName) {
-      throw new ORPCError("BAD_REQUEST");
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Missing bucketName or objectName",
+      });
     }
     try {
       const url = await generatePresignedPutUrl(bucketName, objectName, 60 * 5);
@@ -286,7 +290,9 @@ export const createChapterDraft = authenticated
     const { workId, title } = input;
     const user = context.session.user;
     if (!user) {
-      throw new ORPCError("UNAUTHORIZED");
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
     }
 
     const chapterId = nanoid();
@@ -334,7 +340,9 @@ export const updateChapter = authenticated
   .handler(async ({ input, context }) => {
     const { id, workId, ...updateFields } = input;
     if (!context.session.user) {
-      throw new ORPCError("UNAUTHORIZED");
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
     }
     try {
       let result;
@@ -348,7 +356,8 @@ export const updateChapter = authenticated
           .from(chapters)
           .where(eq(chapters.id, id))
           .limit(1);
-        if (!existing) throw new ORPCError("NOT_FOUND");
+        if (!existing)
+          throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
 
         result = await tx
           .update(chapters)
@@ -506,7 +515,9 @@ export const createChapterVersion = authenticated
   .handler(async ({ input, context }) => {
     const user = context.session.user;
     if (!user) {
-      throw new ORPCError("UNAUTHORIZED");
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
     }
 
     const versionId = nanoid();
@@ -522,7 +533,8 @@ export const createChapterVersion = authenticated
           .from(chapters)
           .where(eq(chapters.id, input.chapterId))
           .limit(1);
-        if (!existingChapter) throw new ORPCError("NOT_FOUND");
+        if (!existingChapter)
+          throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
         // 1. Insert the new version
         await tx.insert(chapterVersions).values({
           id: versionId,
@@ -583,7 +595,9 @@ export const updateChapterVersion = authenticated
   .handler(async ({ input, context }) => {
     const user = context.session.user;
     if (!user) {
-      throw new ORPCError("UNAUTHORIZED");
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
     }
 
     const { id, content, wordCount } = input;
@@ -593,7 +607,10 @@ export const updateChapterVersion = authenticated
         const version = await tx.query.chapterVersions.findFirst({
           where: (cv, { eq }) => eq(cv.id, id),
         });
-        if (!version) throw new ORPCError("NOT_FOUND");
+        if (!version)
+          throw new ORPCError("NOT_FOUND", {
+            message: "Chapter version not found",
+          });
         const [chapterBefore] = await tx
           .select({
             wordCount: chapters.wordCount,
@@ -603,7 +620,8 @@ export const updateChapterVersion = authenticated
           .from(chapters)
           .where(eq(chapters.id, version.chapterId))
           .limit(1);
-        if (!chapterBefore) throw new ORPCError("NOT_FOUND");
+        if (!chapterBefore)
+          throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
 
         const updateData: Partial<typeof chapterVersions.$inferInsert> = {
           updatedAt: new Date(),
@@ -640,7 +658,10 @@ export const publishChapter = authenticated
   )
   .handler(async ({ input, context }) => {
     const user = context.session.user;
-    if (!user) throw new ORPCError("UNAUTHORIZED");
+    if (!user)
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
 
     const { workSlug, chapterId } = input;
 
@@ -651,11 +672,14 @@ export const publishChapter = authenticated
           where: (w, { eq }) => eq(w.slug, workSlug),
         });
 
-        if (!work) throw new ORPCError("NOT_FOUND");
+        if (!work)
+          throw new ORPCError("NOT_FOUND", { message: "Work not found" });
 
         // Check work ownership
         if (work.authorId !== user.id) {
-          throw new ORPCError("FORBIDDEN");
+          throw new ORPCError("FORBIDDEN", {
+            message: "User does not own this work",
+          });
         }
 
         const chapter = await tx.query.chapters.findFirst({
@@ -663,11 +687,14 @@ export const publishChapter = authenticated
             and(eq(c.id, chapterId), eq(c.workId, work.id)),
         });
 
-        if (!chapter) throw new ORPCError("NOT_FOUND");
+        if (!chapter)
+          throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
 
         // Prevent concurrent publishing - check if already published
         if (chapter.status === ChapterStatus.PUBLISHED) {
-          throw new ORPCError("CONFLICT");
+          throw new ORPCError("CONFLICT", {
+            message: "Chapter is already published",
+          });
         }
 
         // Get all versions, latest first
@@ -677,7 +704,9 @@ export const publishChapter = authenticated
         });
 
         if (!versions.length || !versions[0]?.content) {
-          throw new ORPCError("BAD_REQUEST");
+          throw new ORPCError("BAD_REQUEST", {
+            message: "No valid chapter version to publish",
+          });
         }
 
         return { work, chapter, versions };
@@ -746,7 +775,9 @@ export const publishChapter = authenticated
       if (error instanceof ORPCError) {
         throw error;
       }
-      throw new ORPCError("INTERNAL_SERVER_ERROR");
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Unknown error occurred during publish",
+      });
     }
   });
 
