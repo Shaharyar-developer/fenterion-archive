@@ -650,23 +650,35 @@ export const publishChapter = authenticated
         const work = await tx.query.works.findFirst({
           where: (w, { eq }) => eq(w.slug, workSlug),
         });
-        ensureFound(work);
+
         if (!work) throw new ORPCError("NOT_FOUND");
+
+        // Check work ownership
+        if (work.authorId !== user.id) {
+          throw new ORPCError("FORBIDDEN");
+        }
 
         const chapter = await tx.query.chapters.findFirst({
           where: (c, { eq, and }) =>
             and(eq(c.id, chapterId), eq(c.workId, work.id)),
         });
-        ensureFound(chapter);
+
         if (!chapter) throw new ORPCError("NOT_FOUND");
+
+        // Prevent concurrent publishing - check if already published
+        if (chapter.status === ChapterStatus.PUBLISHED) {
+          throw new ORPCError("CONFLICT");
+        }
 
         // Get all versions, latest first
         const versions = await tx.query.chapterVersions.findMany({
           where: (cv, { eq }) => eq(cv.chapterId, chapter.id),
           orderBy: (cv, { desc }) => desc(cv.createdAt),
         });
-        ensureFound(versions);
-        if (!versions[0]) throw new ORPCError("NOT_FOUND");
+
+        if (!versions.length || !versions[0]?.content) {
+          throw new ORPCError("BAD_REQUEST");
+        }
 
         return { work, chapter, versions };
       });
@@ -684,28 +696,28 @@ export const publishChapter = authenticated
         "text/markdown"
       );
 
-      // Delete all previous versions except the latest, and clear out latest content
+      // Delete all previous versions except the latest, and mark latest as archived
       await db.transaction(async (tx) => {
-        // Delete all but the latest version
+        // More direct approach: delete all versions except the latest
         if (versions.length > 1) {
-          const idsToDelete = versions.slice(1).map((v) => v.id);
-          await tx.delete(chapterVersions).where(
-            and(
-              eq(chapterVersions.chapterId, chapter.id),
-              notInArray(
-                chapterVersions.id,
-                idsToDelete.length ? idsToDelete : ["___never___"]
-              ) // never matches if empty
-            )
-          );
+          const versionsToDelete = versions.slice(1);
+          for (const version of versionsToDelete) {
+            await tx
+              .delete(chapterVersions)
+              .where(eq(chapterVersions.id, version.id));
+          }
         }
-        // Clear out content of the latest version
+
+        // Mark latest version as archived (keep content but flag it)
         await tx
           .update(chapterVersions)
-          .set({ content: "", updatedAt: new Date() })
+          .set({
+            content: "", // Clear to save space, but keep version record
+            updatedAt: new Date(),
+          })
           .where(eq(chapterVersions.id, latestVersion.id));
 
-        // Mark published
+        // Mark chapter as published
         await tx
           .update(chapters)
           .set({
@@ -720,11 +732,23 @@ export const publishChapter = authenticated
 
       return { chapterId, archiveUrl: getItemUrl(key) };
     } catch (error) {
-      console.error("Error publishing chapter:", error);
+      // Enhanced error logging with context
+      console.error("Error publishing chapter:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: user.id,
+        workSlug,
+        chapterId,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Re-throw known errors, wrap unknown ones
+      if (error instanceof ORPCError) {
+        throw error;
+      }
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
   });
-
 
 export const router = {
   user: {
