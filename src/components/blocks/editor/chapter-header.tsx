@@ -1,5 +1,7 @@
 "use client";
 
+import React, { useMemo } from "react";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,8 @@ import {
   Archive,
   Loader2,
   AlignHorizontalSpaceAround,
+  HelpCircle,
+  History,
 } from "lucide-react";
 import {
   Tooltip,
@@ -45,6 +49,12 @@ import {
 import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
 import { useChapter } from "@/hooks/use-chapter";
 import { useQueryClient } from "@tanstack/react-query";
+import { VirtualizedCombobox } from "@/components/ui/virtualized-combobox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface ChapterHeaderProps {
   chapter?: Chapter;
@@ -112,7 +122,13 @@ export function ChapterHeader({
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null
   );
-  const { setChapter } = useChapter();
+  const {
+    setChapter,
+    currentChapterVersion,
+    setCurrentChapterVersion,
+    prevChapterVersions,
+    setPrevChapterVersions,
+  } = useChapter();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -334,6 +350,52 @@ export function ChapterHeader({
         ? `Saved at ${lastSavedAt.toLocaleTimeString()}`
         : "Loaded";
 
+  // Build version list (current first, then previous) for selector
+  // Build unified version list ensuring current always included and others unique.
+  const versions = useMemo(() => {
+    const others = prevChapterVersions
+      .filter((v) => v.id !== currentChapterVersion?.id)
+      .sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0));
+    return [
+      ...(currentChapterVersion ? [currentChapterVersion] : []),
+      ...others,
+    ];
+  }, [currentChapterVersion, prevChapterVersions]);
+  const versionOptions = versions.map((v, idx) => ({
+    value: v.id,
+    label: `v${v?.versionNumber ?? "?"}`,
+    meta: {
+      versionNumber: v.versionNumber,
+      updatedAt: v.updatedAt,
+      createdAt: v.createdAt,
+      wordCount: chapter.wordCount, // chapter wordCount corresponds to current; per-version count not stored unless embedded; fallback
+      isCurrent: v.id === currentChapterVersion?.id,
+    },
+  }));
+  const currentSelectedVersionId = currentChapterVersion?.id || "";
+
+  const handleSelectVersion = (id: string) => {
+    if (!id) return; // ignore clearing for now
+    const selected = versions.find((v) => v.id === id);
+    if (!selected) return;
+    if (selected.id === currentChapterVersion?.id) return;
+    // Move old current into prev list if not already there
+    if (currentChapterVersion) {
+      setPrevChapterVersions((prev) => {
+        const withoutSelected = prev.filter((v) => v.id !== selected.id);
+        const already = withoutSelected.some(
+          (v) => v.id === currentChapterVersion.id
+        );
+        return already
+          ? withoutSelected
+          : [currentChapterVersion, ...withoutSelected];
+      });
+    }
+    // Remove selected from prev list and set as current
+    setPrevChapterVersions((prev) => prev.filter((v) => v.id !== selected.id));
+    setCurrentChapterVersion(selected);
+  };
+
   return (
     <TooltipProvider delayDuration={150}>
       <motion.div
@@ -354,87 +416,196 @@ export function ChapterHeader({
           <div className="flex items-start gap-4">
             <div className="flex items-center gap-2 min-w-0 relative flex-1">
               <AnimatePresence mode="wait" initial={false}>
-                {editingTitle ? (
-                  <motion.form
-                    key="title-edit"
-                    layout
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void persistTitle();
-                    }}
-                    className="flex items-center gap-2 min-w-0"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                      transition: {
-                        duration: 0.18,
-                        ease: [0.25, 0.1, 0.25, 1],
-                      },
-                    }}
-                    exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
-                  >
-                    <motion.div layout className="min-w-0">
-                      <Input
-                        ref={titleInputRef}
-                        autoFocus
-                        value={title}
-                        aria-label="Chapter title"
-                        onChange={(e) => setTitle(e.target.value)}
-                        onBlur={() => void persistTitle()}
-                        className={cn(
-                          "h-10 text-lg font-semibold px-3",
-                          "focus-visible:ring-0 focus-visible:outline-none",
-                          "border-transparent bg-transparent focus:border-primary/40 focus:ring-0 transition-[width,font-size] duration-200"
-                        )}
-                      />
-                    </motion.div>
-                    <motion.div layout>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        type="submit"
-                        disabled={savingTitle}
-                        aria-label="Save chapter title"
-                        className="h-9 px-3 gap-1"
-                      >
-                        {savingTitle ? (
-                          <Loader2 className="animate-spin size-4" />
-                        ) : (
-                          <Save className="size-4" />
-                        )}
-                        <span className="sr-only">Save title</span>
-                      </Button>
-                    </motion.div>
-                  </motion.form>
-                ) : (
-                  <motion.button
-                    key="title-display"
-                    layout
-                    onClick={() => setEditingTitle(true)}
-                    aria-label="Edit chapter title"
-                    className="group text-left px-1 -mx-1 rounded-md hover:bg-accent/50 flex items-center gap-2 min-w-0"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                      transition: {
-                        duration: 0.18,
-                        ease: [0.25, 0.1, 0.25, 1],
-                      },
-                    }}
-                    exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    <motion.h1
+                <div className="flex items-center justify-center max-h-max">
+                  {editingTitle ? (
+                    <motion.form
+                      key="title-edit"
                       layout
-                      className="text-xl md:text-2xl font-semibold tracking-tight leading-none truncate max-w-[clamp(16ch,60vw,720px)] transition-[font-size] duration-200"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void persistTitle();
+                      }}
+                      className="flex items-center gap-2 min-w-0"
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        transition: {
+                          duration: 0.18,
+                          ease: [0.25, 0.1, 0.25, 1],
+                        },
+                      }}
+                      exit={{
+                        opacity: 0,
+                        y: -4,
+                        transition: { duration: 0.12 },
+                      }}
                     >
-                      {title || "Untitled Chapter"}
-                    </motion.h1>
-                    <Pencil className="size-4 opacity-0 group-hover:opacity-70 transition-opacity" />
-                  </motion.button>
-                )}
+                      <motion.div layout className="min-w-0">
+                        <Input
+                          ref={titleInputRef}
+                          autoFocus
+                          value={title}
+                          aria-label="Chapter title"
+                          onChange={(e) => setTitle(e.target.value)}
+                          onBlur={() => void persistTitle()}
+                          className={cn(
+                            "h-10 text-lg font-semibold px-3",
+                            "focus-visible:ring-0 focus-visible:outline-none",
+                            "border-transparent bg-transparent focus:border-primary/40 focus:ring-0 transition-[width,font-size] duration-200"
+                          )}
+                        />
+                      </motion.div>
+                      <motion.div layout>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          type="submit"
+                          disabled={savingTitle}
+                          aria-label="Save chapter title"
+                          className="h-9 px-3 gap-1"
+                        >
+                          {savingTitle ? (
+                            <Loader2 className="animate-spin size-4" />
+                          ) : (
+                            <Save className="size-4" />
+                          )}
+                          <span className="sr-only">Save title</span>
+                        </Button>
+                      </motion.div>
+                    </motion.form>
+                  ) : (
+                    <motion.button
+                      key="title-display"
+                      layout
+                      onClick={() => setEditingTitle(true)}
+                      aria-label="Edit chapter title"
+                      className="group text-left px-1 -mx-1 rounded-md hover:bg-accent/50 flex items-center gap-2 min-w-0"
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        transition: {
+                          duration: 0.18,
+                          ease: [0.25, 0.1, 0.25, 1],
+                        },
+                      }}
+                      exit={{
+                        opacity: 0,
+                        y: -4,
+                        transition: { duration: 0.12 },
+                      }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      <motion.h1
+                        layout
+                        className="text-xl md:text-2xl font-semibold tracking-tight leading-none truncate max-w-[clamp(16ch,60vw,720px)] transition-[font-size] duration-200"
+                      >
+                        {title || "Untitled Chapter"}
+                      </motion.h1>
+                      <Pencil className="size-4 opacity-0 group-hover:opacity-70 transition-opacity" />
+                    </motion.button>
+                  )}
+                  {/* Version selector row */}
+                  {chapter.status !== ChapterStatus.PUBLISHED &&
+                    versionOptions.length > 1 && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size={"sm"}
+                                aria-label="Version details"
+                              >
+                                Versions <History className="size-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-xs p-3 space-y-2"
+                              align="start"
+                            >
+                              <div className="text-sm font-medium">
+                                Version details
+                              </div>
+                              <div className="max-h-64 overflow-auto pr-1 space-y-2 text-xs">
+                                {versions.map((v) => {
+                                  const isCurrent =
+                                    v.id === currentChapterVersion?.id;
+                                  const meta = versionOptions.find(
+                                    (o) => o.value === v.id
+                                  )?.meta;
+                                  return (
+                                    <div
+                                      key={v.id}
+                                      className="border rounded-md p-2 bg-muted/40 flex flex-col gap-1"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-semibold">
+                                          v
+                                          {meta?.versionNumber ??
+                                            v.versionNumber ??
+                                            "?"}
+                                        </span>
+                                        {isCurrent && (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-[10px]"
+                                          >
+                                            current
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-x-2 gap-y-[2px]">
+                                        <span className="text-muted-foreground">
+                                          Created
+                                        </span>
+                                        <span>
+                                          {v.createdAt
+                                            ? new Date(
+                                                v.createdAt
+                                              ).toLocaleString()
+                                            : "—"}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          Updated
+                                        </span>
+                                        <span>
+                                          {v.updatedAt
+                                            ? new Date(
+                                                v.updatedAt
+                                              ).toLocaleString()
+                                            : "—"}
+                                        </span>
+                                      </div>
+                                      {!isCurrent && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-6 mt-1 text-[11px] px-2"
+                                          onClick={() =>
+                                            handleSelectVersion(v.id)
+                                          }
+                                        >
+                                          View this version
+                                        </Button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                Selecting a version switches the editor content.
+                                Only the current version can be edited; others
+                                are read-only until promoted by saving a new
+                                version.
+                              </p>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                    )}
+                </div>
               </AnimatePresence>
             </div>
             <div className="flex items-center gap-2 md:gap-3 pl-2">
@@ -579,7 +750,7 @@ export function ChapterHeader({
                       key={s}
                       disabled={changingStatus || s === status}
                       className="flex items-center gap-2"
-                      onClick={() => requestStatusChange(s)}
+                      onClick={() => requestStatusChange(s as ChapterStatus)}
                     >
                       <span
                         className={cn(

@@ -656,13 +656,13 @@ export const createChapterVersion = authenticated
 
         // Always recalculate work word count after updating chapter word count
         await recomputeWorkWordCount(tx, existingChapter.workId);
-        // 3. Keep only last 5 versions
+        // 3. Keep only last 10 versions
         const subquery = tx
           .select({ id: chapterVersions.id })
           .from(chapterVersions)
           .where(eq(chapterVersions.chapterId, input.chapterId))
           .orderBy(desc(chapterVersions.updatedAt))
-          .limit(5);
+          .limit(10);
 
         await tx
           .delete(chapterVersions)

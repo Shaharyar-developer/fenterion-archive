@@ -55,6 +55,7 @@ export const ChapterProvider = ({
         prevChapterVersions,
         setChapter,
         setCurrentChapterVersion,
+        setPrevChapterVersions,
         isPending: isPending,
       }}
     >

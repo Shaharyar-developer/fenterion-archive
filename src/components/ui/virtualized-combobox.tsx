@@ -15,19 +15,27 @@ import {
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, ChevronsUpDown } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import * as React from "react";
 
-type Option = {
+export type VirtualizedOption = {
   value: string;
   label: string;
+  meta?: Record<string, any>; // arbitrary metadata for tooltip rendering
 };
 
 interface VirtualizedCommandProps {
   height: string;
-  options: Option[];
+  options: VirtualizedOption[];
   placeholder: string;
   selectedOption: string;
   onSelectOption?: (option: string) => void;
+  getOptionTooltip?: (option: VirtualizedOption) => React.ReactNode;
 }
 
 const VirtualizedCommand = ({
@@ -36,9 +44,15 @@ const VirtualizedCommand = ({
   placeholder,
   selectedOption,
   onSelectOption,
+  getOptionTooltip,
 }: VirtualizedCommandProps) => {
   const [filteredOptions, setFilteredOptions] =
-    React.useState<Option[]>(options);
+    React.useState<VirtualizedOption[]>(options);
+
+  // Keep internal filtered list in sync when external options change
+  React.useEffect(() => {
+    setFilteredOptions(options);
+  }, [options]);
   const [focusedIndex, setFocusedIndex] = React.useState(0);
   const [isKeyboardNavActive, setIsKeyboardNavActive] = React.useState(false);
 
@@ -119,76 +133,94 @@ const VirtualizedCommand = ({
   }, [selectedOption, filteredOptions, virtualizer]);
 
   return (
-    <Command shouldFilter={false} onKeyDown={handleKeyDown}>
-      <CommandInput onValueChange={handleSearch} placeholder={placeholder} />
-      <CommandList
-        ref={parentRef}
-        style={{
-          height: height,
-          width: "100%",
-          overflow: "auto",
-        }}
-        onMouseDown={() => setIsKeyboardNavActive(false)}
-        onMouseMove={() => setIsKeyboardNavActive(false)}
-      >
-        <CommandEmpty>No item found.</CommandEmpty>
-        <CommandGroup>
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {virtualOptions.map((virtualOption) => (
-              <CommandItem
-                key={filteredOptions[virtualOption.index].value}
-                disabled={isKeyboardNavActive}
-                className={cn(
-                  "absolute left-0 top-0 w-full bg-transparent",
-                  focusedIndex === virtualOption.index &&
-                    "bg-accent text-accent-foreground",
-                  isKeyboardNavActive &&
-                    focusedIndex !== virtualOption.index &&
-                    "aria-selected:bg-transparent aria-selected:text-primary"
-                )}
-                style={{
-                  height: `${virtualOption.size}px`,
-                  transform: `translateY(${virtualOption.start}px)`,
-                }}
-                value={filteredOptions[virtualOption.index].value}
-                onMouseEnter={() =>
-                  !isKeyboardNavActive && setFocusedIndex(virtualOption.index)
-                }
-                onMouseLeave={() => !isKeyboardNavActive && setFocusedIndex(-1)}
-                onSelect={onSelectOption}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    selectedOption ===
-                      filteredOptions[virtualOption.index].value
-                      ? "opacity-100"
-                      : "opacity-0"
-                  )}
-                />
-                {filteredOptions[virtualOption.index].label}
-              </CommandItem>
-            ))}
-          </div>
-        </CommandGroup>
-      </CommandList>
-    </Command>
+    <TooltipProvider delayDuration={150}>
+      <Command shouldFilter={false} onKeyDown={handleKeyDown}>
+        <CommandInput onValueChange={handleSearch} placeholder={placeholder} />
+        <CommandList
+          ref={parentRef}
+          style={{
+            height: height,
+            width: "100%",
+            overflow: "auto",
+          }}
+          onMouseDown={() => setIsKeyboardNavActive(false)}
+          onMouseMove={() => setIsKeyboardNavActive(false)}
+        >
+          <CommandEmpty>No item found.</CommandEmpty>
+          <CommandGroup>
+            <div
+              style={{
+                height: `${virtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {virtualOptions.map((virtualOption) => {
+                const opt = filteredOptions[virtualOption.index];
+                const item = (
+                  <CommandItem
+                    key={opt.value}
+                    disabled={isKeyboardNavActive}
+                    className={cn(
+                      "absolute left-0 top-0 w-full bg-transparent",
+                      focusedIndex === virtualOption.index &&
+                        "bg-accent text-accent-foreground",
+                      isKeyboardNavActive &&
+                        focusedIndex !== virtualOption.index &&
+                        "aria-selected:bg-transparent aria-selected:text-primary"
+                    )}
+                    style={{
+                      height: `${virtualOption.size}px`,
+                      transform: `translateY(${virtualOption.start}px)`,
+                    }}
+                    value={opt.value}
+                    onMouseEnter={() =>
+                      !isKeyboardNavActive &&
+                      setFocusedIndex(virtualOption.index)
+                    }
+                    onMouseLeave={() =>
+                      !isKeyboardNavActive && setFocusedIndex(-1)
+                    }
+                    onSelect={onSelectOption}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedOption === opt.value
+                          ? "opacity-100"
+                          : "opacity-0"
+                      )}
+                    />
+                    {opt.label}
+                  </CommandItem>
+                );
+                if (!getOptionTooltip) return item;
+                return (
+                  <Tooltip key={opt.value}>
+                    <TooltipTrigger asChild>{item}</TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                      {getOptionTooltip(opt)}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </CommandGroup>
+        </CommandList>
+      </Command>
+    </TooltipProvider>
   );
 };
 
 interface VirtualizedComboboxProps {
-  options: string[];
+  options: (string | VirtualizedOption)[];
   searchPlaceholder?: string;
   width?: string;
   height?: string;
   onSelectOption?: (option: string) => void;
   className?: string;
+  initialSelectedOption?: string;
+  getOptionTooltip?: (option: VirtualizedOption) => React.ReactNode;
 }
 
 export function VirtualizedCombobox({
@@ -198,9 +230,30 @@ export function VirtualizedCombobox({
   width = "400px",
   height = "400px",
   className,
+  initialSelectedOption = "",
+  getOptionTooltip,
 }: VirtualizedComboboxProps) {
   const [open, setOpen] = React.useState(false);
-  const [selectedOption, setSelectedOption] = React.useState("");
+  const [selectedOption, setSelectedOption] = React.useState(
+    initialSelectedOption
+  );
+
+  const optionObjects: VirtualizedOption[] = React.useMemo(
+    () =>
+      options.map((o) =>
+        typeof o === "string"
+          ? { value: o, label: o }
+          : { value: o.value, label: o.label }
+      ),
+    [options]
+  );
+
+  // Sync internal selection if initialSelectedOption changes (controlled-like)
+  React.useEffect(() => {
+    setSelectedOption((prev) =>
+      prev === initialSelectedOption ? prev : initialSelectedOption
+    );
+  }, [initialSelectedOption]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -212,9 +265,9 @@ export function VirtualizedCombobox({
           aria-expanded={open}
           className={cn("justify-between", className)}
         >
-          <span className="max-w-[100px] truncate">
+          <span className="max-w-[150px] truncate">
             {selectedOption
-              ? options.find((option) => option === selectedOption)
+              ? optionObjects.find((o) => o.value === selectedOption)?.label
               : searchPlaceholder}
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
@@ -223,7 +276,7 @@ export function VirtualizedCombobox({
       <PopoverContent className="p-0" style={{ width: width }}>
         <VirtualizedCommand
           height={height}
-          options={options.map((option) => ({ value: option, label: option }))}
+          options={optionObjects}
           placeholder={searchPlaceholder}
           selectedOption={selectedOption}
           onSelectOption={(currentValue) => {
@@ -233,6 +286,7 @@ export function VirtualizedCombobox({
             onSelectOption?.(currentValue);
             setOpen(false);
           }}
+          getOptionTooltip={getOptionTooltip}
         />
       </PopoverContent>
     </Popover>

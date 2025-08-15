@@ -14,6 +14,7 @@ interface ChapterContentProps {
   viewMode: "readable" | "max-width";
   setViewMode: (mode: "readable" | "max-width") => void;
   readOnly?: boolean;
+  readOnlyReason?: string;
 }
 
 // Pure presentational editor surface: all interaction (saving, status, etc.) lives in header.
@@ -23,6 +24,7 @@ export function ChapterContent({
   viewMode,
   setViewMode,
   readOnly = false,
+  readOnlyReason,
 }: ChapterContentProps) {
   const [editor, setEditor] = useState<Editor | null>(null);
 
@@ -31,7 +33,7 @@ export function ChapterContent({
       <div className="relative h-full overflow-auto w-full">
         {readOnly && (
           <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700 px-3 py-1 rounded-full text-xs font-medium shadow">
-            Published (read-only)
+            {readOnlyReason || "Read-only"}
           </div>
         )}
         {content === null ? (

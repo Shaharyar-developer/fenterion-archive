@@ -36,6 +36,9 @@ type ChapterContextType = {
     React.SetStateAction<ChapterVersion | null>
   >;
   prevChapterVersions: ChapterVersion[];
+  setPrevChapterVersions: React.Dispatch<
+    React.SetStateAction<ChapterVersion[]>
+  >;
 
   isPending?: boolean;
 };
