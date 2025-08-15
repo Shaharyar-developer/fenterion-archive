@@ -218,7 +218,7 @@ export const chapters = pgTable("chapters", {
   workId: text("work_id")
     .references(() => works.id)
     .notNull(),
-  position: integer("position").generatedAlwaysAsIdentity(), // Order in the work
+  position: integer("position").default(1),
   slug: varchar("slug", { length: 255 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

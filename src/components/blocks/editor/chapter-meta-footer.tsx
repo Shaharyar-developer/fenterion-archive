@@ -10,6 +10,9 @@ import {
   FileText,
   AlignHorizontalSpaceAround,
   Ellipsis,
+  Wand2,
+  Superscript,
+  Subscript,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +30,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import FontPicker from "../font-picker";
+import { toZalgo, fromZalgo } from "@/lib/utils";
 
 interface ChapterMetaFooterProps {
   editor: Editor | null;
@@ -82,6 +86,8 @@ export function ChapterMetaFooter({
   const run = (cb: () => void) => () => {
     if (editor) cb();
   };
+
+  // Superscript/Subscript extensions must be loaded in editor setup (see main editor file)
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -173,6 +179,93 @@ export function ChapterMetaFooter({
                 </TooltipTrigger>
                 <TooltipContent side="top" className="underline">
                   Underline
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Superscript"
+                    className={cn(
+                      btnBase,
+                      editor.isActive("superscript") &&
+                        "bg-primary/10 text-primary dark:bg-primary/20"
+                    )}
+                    onClick={run(() =>
+                      editor
+                        .chain()
+                        .focus()
+                        .toggleSuperscript()
+                        .unsetSubscript() // keep exclusive
+                        .run()
+                    )}
+                  >
+                    <Superscript className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Superscript
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Subscript"
+                    className={cn(
+                      btnBase,
+                      editor.isActive("subscript") &&
+                        "bg-primary/10 text-primary dark:bg-primary/20"
+                    )}
+                    onClick={run(() =>
+                      editor
+                        .chain()
+                        .focus()
+                        .toggleSubscript()
+                        .unsetSuperscript() // keep exclusive
+                        .run()
+                    )}
+                  >
+                    <Subscript className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Subscript
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Toggle Zalgo (glitch)"
+                    className={btnBase}
+                    onClick={run(() => {
+                      const { state } = editor;
+                      const { from, to } = state.selection;
+                      if (from === to) return; // require a selection
+                      const selected = state.doc.textBetween(from, to, " ");
+                      const hasZalgo = /[\u0300-\u036F\u0489]/.test(selected);
+                      const transformed = hasZalgo
+                        ? fromZalgo(selected)
+                        : toZalgo(selected, 6);
+                      editor
+                        .chain()
+                        .focus()
+                        .insertContentAt({ from, to }, transformed)
+                        .run();
+                    })}
+                  >
+                    <Wand2 className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Apply / remove Zalgo effect on selected text
                 </TooltipContent>
               </Tooltip>
               <Tooltip>

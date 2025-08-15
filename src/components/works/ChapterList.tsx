@@ -1,7 +1,7 @@
 "use client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen, GripVertical, Ellipsis } from "lucide-react";
+import { Plus, BookOpen, GripVertical, Ellipsis, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WorkOverviewWork, WorkOverviewChapter } from "./types";
 import { CHAPTER_STATUS_META } from "@/constants/work-status-meta";
@@ -27,6 +27,24 @@ import {
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
 import { Chapter, Work } from "@/db/schema";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
 
 // Utility: lightweight relative time (minutes, hours, days, months)
 function formatRelativeTime(date: Date | null | undefined) {
@@ -221,39 +239,132 @@ function ChapterRow({ work, chapter }: { work: Work; chapter: Chapter }) {
             )}
           </div>
         </div>
-        <ChapterActions
-          createdAt={createdAt}
-          updatedAt={updatedAt}
-          statusLabel={statusLabel}
-        />
+        <ChapterActions work={work} chapter={chapter} />
       </li>
     </Link>
   );
 }
 
-function ChapterActions({
-  createdAt,
-  updatedAt,
-  statusLabel,
-}: {
-  createdAt?: Date | null;
-  updatedAt?: Date | null;
-  statusLabel?: string;
-}) {
+function ChapterActions({ work, chapter }: { work: Work; chapter: Chapter }) {
+  const { loading, run } = useAsyncAction();
+  const router = useRouter();
+  const [open, setOpen] = useState(false); // alert dialog open
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const matched = confirmTitle.trim() === chapter.title.trim();
+
+  const handleDelete = async () => {
+    await run("Delete Chapter", async () => {
+      await client.chapter.delete({ workId: work.id, chapterId: chapter.id });
+      setOpen(false);
+      router.refresh();
+    });
+  };
+
   return (
-    <div className="relative">
-      <Button
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          variant="ghost"
+          size="icon"
+          aria-label="Chapter actions"
+          className="h-8 w-8 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+        >
+          <Ellipsis />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
         onClick={(e) => {
+          // keep menu interactions from triggering parent link
           e.stopPropagation();
-          e.preventDefault();
         }}
-        variant="ghost"
-        size="icon"
-        aria-label="Chapter actions"
-        className="h-8 w-8 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+        align="end"
+        className="w-48"
       >
-        <Ellipsis />
-      </Button>
-    </div>
+        <DropdownMenuItem asChild>
+          <Link
+            href={ROUTES.dashboard.works.bySlugChapter(work.slug, chapter.slug)}
+            className="cursor-pointer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Open
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <AlertDialog open={open} onOpenChange={setOpen}>
+          <AlertDialogTrigger asChild>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive cursor-pointer"
+              onSelect={(e) => {
+                e.preventDefault();
+                setOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </DropdownMenuItem>
+          </AlertDialogTrigger>
+          <AlertDialogContent
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-md"
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete chapter</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 text-sm">
+                  <p>
+                    This will permanently delete the chapter
+                    <span className="font-medium"> “{chapter.title}”</span>
+                    {chapter.status === "published" && (
+                      <>
+                        {" "}
+                        and its published archive (all versions) from storage
+                      </>
+                    )}
+                    . This action cannot be undone.
+                  </p>
+                  <div className="space-y-1">
+                    <p>
+                      Type <span className="font-bold">{chapter.title}</span> to
+                      confirm deletion:
+                    </p>
+                    <Input
+                      autoFocus
+                      placeholder="Chapter title"
+                      value={confirmTitle}
+                      onChange={(e) => setConfirmTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && matched && !loading) {
+                          e.preventDefault();
+                          handleDelete();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                onClick={() => {
+                  setConfirmTitle("");
+                }}
+              >
+                Cancel
+              </AlertDialogCancel>
+              <Button
+                variant="destructive"
+                disabled={!matched || !!loading}
+                onClick={handleDelete}
+              >
+                {loading ? "Deleting..." : "Delete"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

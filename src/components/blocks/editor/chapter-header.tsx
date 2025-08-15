@@ -58,7 +58,8 @@ import {
 import { format } from "date-fns";
 
 interface ChapterHeaderProps {
-  chapter: Chapter;
+  // Chapter can be temporarily undefined while data loads; component will render a placeholder
+  chapter?: Chapter;
   dirty?: boolean;
   saving?: boolean;
   lastSavedAt?: Date | null;
@@ -78,7 +79,8 @@ export function ChapterHeader({
   onChangeSaveMode,
   workSlug,
 }: ChapterHeaderProps) {
-  const [title, setTitle] = useState(chapter?.title);
+  // Local copies so we can render intermediate state even if incoming chapter prop is undefined initially
+  const [title, setTitle] = useState(chapter?.title || "");
   const [status, setStatus] = useState<ChapterStatus | undefined>(
     chapter?.status
   );
@@ -109,10 +111,24 @@ export function ChapterHeader({
   } = useChapter();
   const queryClient = useQueryClient();
 
+  // Sync local state when a (new) chapter object arrives
   useEffect(() => {
+    if (!chapter) return;
     setTitle(chapter.title);
     setStatus(chapter.status);
-  }, [chapter.id, chapter.title, chapter.status]);
+  }, [chapter?.id, chapter?.title, chapter?.status]);
+
+  // If chapter not yet loaded show lightweight placeholder header (skeleton shimmer etc.)
+  if (!chapter) {
+    return (
+      <div className="sticky top-12 z-30 w-full backdrop-blur bg-background/80 shadow-sm px-3 py-2 md:px-6 md:py-3">
+        <div className="flex items-center gap-3">
+          <div className="h-7 w-64 rounded-md bg-muted animate-pulse" />
+          <div className="h-6 w-20 rounded-md bg-muted animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   // Improved persistTitle to queue saves if user types fast
   const persistTitle = useCallback(

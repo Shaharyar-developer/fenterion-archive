@@ -30,7 +30,7 @@ import {
   removeFromR2,
   uploadToR2,
 } from "./minio";
-import { and, desc, asc, eq, notInArray, sql } from "drizzle-orm";
+import { and, desc, asc, eq, notInArray, sql, gt } from "drizzle-orm";
 import { BUCKET_NAME } from "@/constants/misc";
 
 function ensureFound<T>(entity: T | null): T {
@@ -1048,6 +1048,112 @@ export const unpublishChapter = authenticated
     }
   });
 
+/**
+ * Delete a chapter (and all its versions). If the chapter is published, also delete
+ * all associated archived objects from R2.
+ * @param input - Object containing workId and chapterId.
+ * @returns Deletion summary.
+ */
+export const deleteChapter = authenticated
+  .input(
+    z.object({
+      workId: z.string(),
+      chapterId: z.string(),
+    })
+  )
+  .handler(async ({ input, context }) => {
+    const user = context.session.user;
+    if (!user)
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
+
+    const { workId, chapterId } = input;
+    try {
+      // 1. Lookup work & chapter to validate ownership and gather archive info
+      const work = await db.query.works.findFirst({
+        where: (w, { eq }) => eq(w.id, workId),
+      });
+      if (!work)
+        throw new ORPCError("NOT_FOUND", { message: "Work not found" });
+
+      if (work.authorId !== user.id)
+        throw new ORPCError("FORBIDDEN", {
+          message: "User does not own this work",
+        });
+
+      const chapter = await db.query.chapters.findFirst({
+        where: (c, { and, eq }) =>
+          and(eq(c.id, chapterId), eq(c.workId, work.id)),
+      });
+      if (!chapter)
+        throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
+
+      let remoteDeleted = 0;
+      // 2. If published, remove all archived objects from R2 first
+      if (chapter.status === ChapterStatus.PUBLISHED && chapter.archiveKey) {
+        const basePrefix = chapter.archiveKey.replace(/\/latest\.json$/, "");
+        try {
+          const objects = await listObjectsWithPrefix(BUCKET_NAME, basePrefix);
+          if (objects.length) {
+            await removeFromR2(BUCKET_NAME, objects);
+            remoteDeleted = objects.length;
+          }
+        } catch (e) {
+          console.error("Failed to delete archived chapter objects from R2", {
+            error: e instanceof Error ? e.message : String(e),
+            workId,
+            chapterId,
+            userId: user.id,
+          });
+          throw new ORPCError("INTERNAL_SERVER_ERROR", {
+            message: "Failed to remove archived chapter assets",
+          });
+        }
+      }
+
+      // 3. Delete chapter + versions in a transaction and recompute work word count
+      const deletedPosition = chapter.position as number | undefined;
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(chapterVersions)
+          .where(eq(chapterVersions.chapterId, chapterId));
+        await tx.delete(chapters).where(eq(chapters.id, chapterId));
+
+        // Shift down positions of chapters that were after the deleted one
+        if (typeof deletedPosition === "number") {
+          // Now that position is a normal integer column, we can use a Drizzle update
+          await tx
+            .update(chapters)
+            .set({ position: sql`${chapters.position} - 1` })
+            .where(
+              and(
+                eq(chapters.workId, work.id),
+                gt(chapters.position, deletedPosition)
+              )
+            );
+        }
+
+        await recomputeWorkWordCount(tx, work.id);
+      });
+
+      return { chapterId, deleted: true, remoteDeleted };
+    } catch (error) {
+      console.error("Error deleting chapter:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: context.session.user?.id,
+        workId,
+        chapterId,
+        timestamp: new Date().toISOString(),
+      });
+      if (error instanceof ORPCError) throw error;
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Delete chapter failed",
+      });
+    }
+  });
+
 export const router = {
   user: {
     get: getUser,
@@ -1078,6 +1184,7 @@ export const router = {
     updateVersion: updateChapterVersion,
     publish: publishChapter,
     unpublish: unpublishChapter,
+    delete: deleteChapter,
   },
   upload: {
     file: getUploadFileUrl,
