@@ -143,6 +143,22 @@
   .md-editor * {
     font-family: inherit !important; /* ensure children inherit (prose resets) */
   }
+  .md-editor p {
+    /* Provide clearer vertical rhythm for pasted prose paragraphs */
+    margin-top: 0.9em;
+    margin-bottom: 0.9em;
+    line-height: 1.5;
+  }
+  .md-editor p + p {
+    /* Slightly larger gap between distinct paragraphs */
+    margin-top: 1.25em;
+  }
+  .md-editor p br {
+    /* Hard breaks stay tighter than paragraph spacing */
+    line-height: 1.2;
+  }
+  .md-editor p:first-child { margin-top: 0; }
+  .md-editor p:last-child { margin-bottom: 0; }
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
