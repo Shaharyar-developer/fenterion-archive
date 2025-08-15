@@ -30,7 +30,7 @@ import {
   removeFromR2,
   uploadToR2,
 } from "./minio";
-import { and, desc, eq, notInArray, sql } from "drizzle-orm";
+import { and, desc, asc, eq, notInArray, sql } from "drizzle-orm";
 import { BUCKET_NAME } from "@/constants/misc";
 
 function ensureFound<T>(entity: T | null): T {
@@ -318,6 +318,7 @@ export const createChapterDraft = authenticated
         await tx.insert(chapterVersions).values({
           id: currentVersionId,
           chapterId,
+          versionNumber: 1,
         });
       });
       return slug;
@@ -642,6 +643,7 @@ export const createChapterVersion = authenticated
           id: versionId,
           chapterId: input.chapterId,
           content: input.content,
+          versionNumber: 0, // temp; will resequence below
         });
 
         // 2. Update chapter's current version
@@ -672,6 +674,21 @@ export const createChapterVersion = authenticated
               notInArray(chapterVersions.id, subquery)
             )
           );
+
+        // 4. Resequence the remaining (max 10) versions so that
+        //    versionNumber runs from 1 (oldest) -> N (latest)
+        //    This keeps ordering intuitive after pruning.
+        const remaining = await tx
+          .select({ id: chapterVersions.id })
+          .from(chapterVersions)
+          .where(eq(chapterVersions.chapterId, input.chapterId))
+          .orderBy(asc(chapterVersions.createdAt));
+        for (let i = 0; i < remaining.length; i++) {
+          await tx
+            .update(chapterVersions)
+            .set({ versionNumber: i + 1 })
+            .where(eq(chapterVersions.id, remaining[i].id));
+        }
       });
 
       return { id: versionId };
@@ -975,6 +992,7 @@ export const unpublishChapter = authenticated
             id: newId,
             chapterId: chapter.id,
             content: v.content,
+            versionNumber: 0, // will be resequenced below
           });
           // Track last inserted id as currentVersion
           if (v === latestRestored) {
@@ -983,6 +1001,18 @@ export const unpublishChapter = authenticated
               .set({ currentVersionId: newId })
               .where(eq(chapters.id, chapter.id));
           }
+        }
+        // Resequence after inserting all restored versions
+        const reseq = await tx
+          .select({ id: chapterVersions.id })
+          .from(chapterVersions)
+          .where(eq(chapterVersions.chapterId, chapter.id))
+          .orderBy(asc(chapterVersions.createdAt));
+        for (let i = 0; i < reseq.length; i++) {
+          await tx
+            .update(chapterVersions)
+            .set({ versionNumber: i + 1 })
+            .where(eq(chapterVersions.id, reseq[i].id));
         }
         await tx
           .update(chapters)

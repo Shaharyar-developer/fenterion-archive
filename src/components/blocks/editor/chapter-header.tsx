@@ -55,9 +55,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { format } from "date-fns";
 
 interface ChapterHeaderProps {
-  chapter?: Chapter;
+  chapter: Chapter;
   dirty?: boolean;
   saving?: boolean;
   lastSavedAt?: Date | null;
@@ -77,29 +78,6 @@ export function ChapterHeader({
   onChangeSaveMode,
   workSlug,
 }: ChapterHeaderProps) {
-  // If chapter is undefined, render a skeleton/loading state
-  if (!chapter) {
-    return (
-      <div className="sticky top-12 z-30 w-full bg-background/80 shadow-sm px-3 py-2 md:px-6 md:py-3 animate-pulse">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-start gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="h-7 w-2/3 bg-muted rounded mb-2" />
-            </div>
-            <div className="flex items-center gap-2 md:gap-3 pl-2">
-              <div className="h-6 w-16 bg-muted rounded" />
-              <div className="h-6 w-16 bg-muted rounded" />
-              <div className="h-6 w-10 bg-muted rounded" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/80 px-1 mt-1">
-            <div className="h-4 w-24 bg-muted rounded" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const [title, setTitle] = useState(chapter?.title);
   const [status, setStatus] = useState<ChapterStatus | undefined>(
     chapter?.status
@@ -397,7 +375,7 @@ export function ChapterHeader({
   };
 
   return (
-    <TooltipProvider delayDuration={150}>
+    <div>
       <motion.div
         layout
         variants={{
@@ -528,7 +506,7 @@ export function ChapterHeader({
                               <div className="text-sm font-medium">
                                 Version details
                               </div>
-                              <div className="max-h-64 overflow-auto pr-1 space-y-2 text-xs">
+                              <div className="max-h-80 overflow-auto pr-1 space-y-2 text-xs">
                                 {versions.map((v) => {
                                   const isCurrent =
                                     v.id === currentChapterVersion?.id;
@@ -562,9 +540,10 @@ export function ChapterHeader({
                                         </span>
                                         <span>
                                           {v.createdAt
-                                            ? new Date(
-                                                v.createdAt
-                                              ).toLocaleString()
+                                            ? format(
+                                                new Date(v.createdAt),
+                                                "LLL do hh:mm:ss"
+                                              )
                                             : "—"}
                                         </span>
                                         <span className="text-muted-foreground">
@@ -572,9 +551,10 @@ export function ChapterHeader({
                                         </span>
                                         <span>
                                           {v.updatedAt
-                                            ? new Date(
-                                                v.updatedAt
-                                              ).toLocaleString()
+                                            ? format(
+                                                new Date(v.updatedAt),
+                                                "LLL do hh:mm:ss"
+                                              )
                                             : "—"}
                                         </span>
                                       </div>
@@ -912,6 +892,6 @@ export function ChapterHeader({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </TooltipProvider>
+    </div>
   );
 }

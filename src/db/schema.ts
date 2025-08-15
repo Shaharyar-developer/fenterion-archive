@@ -239,9 +239,8 @@ export const chapterVersions = pgTable("chapter_versions", {
   chapterId: text("chapter_id")
     .references(() => chapters.id, { onDelete: "cascade" })
     .notNull(),
-  versionNumber: integer("version_number")
-    .generatedAlwaysAsIdentity()
-    .notNull(),
+  // Manually managed version sequence (1..N per chapter, resequenced after pruning)
+  versionNumber: integer("version_number").notNull().default(0),
   content: text("content").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
