@@ -1,10 +1,4 @@
-import {
-  WorkStatus,
-  WorkType,
-  ChapterStatus,
-  Work,
-  Chapter,
-} from "@/db/schema";
+import { Work, Chapter } from "@/db/schema";
 
 export type WorkOverviewWork = Work & {
   coverUrl: string | null;

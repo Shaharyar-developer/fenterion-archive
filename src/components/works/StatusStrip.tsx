@@ -459,21 +459,23 @@ export function StatusStrip({
   };
 
   const handlePublish = async () => {
-    run("Publish", async () => {
+    await run("Publish", async () => {
       await client.work.update({
         id: work.id,
         status: WorkStatus.PUBLISHED,
       });
     });
+    window.location.reload();
   };
 
   const handleUnpublish = async () => {
-    run("Unpublish", async () => {
+    await run("Unpublish", async () => {
       await client.work.update({
         id: work.id,
         status: WorkStatus.DRAFT,
       });
     });
+    window.location.reload();
   };
 
   const handleCoverUpload = async (file: File) => {

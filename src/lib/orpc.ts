@@ -1,6 +1,7 @@
 import { ORPCError, os } from "@orpc/server";
+
 import * as z from "zod";
-import { auth, Session } from "./auth";
+import { Session } from "./auth";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
 import {
@@ -17,6 +18,11 @@ import { slugify, transformSlug } from "./utils";
 import { dataTagErrorSymbol } from "@tanstack/react-query";
 import { generatePresignedPutUrl, uploadToR2 } from "./minio";
 import { and, desc, eq, notInArray, sql } from "drizzle-orm";
+
+function ensureFound<T>(entity: T | null): T {
+  if (!entity) throw new ORPCError("NOT_FOUND");
+  return entity;
+}
 
 const authenticated = os
   .$context<{ session: Session | null }>()
@@ -58,29 +64,38 @@ async function recomputeWorkWordCount(tx: any, workId: string) {
     .where(eq(works.id, workId));
 }
 
+/**
+ * Get a user by their ID.
+ * @param input - The user ID string.
+ * @returns The user object if found, otherwise throws NOT_FOUND.
+ */
 export const getUser = authenticated
   .input(z.string())
   .handler(async ({ input, context }) => {
     const user = await db.query.user.findFirst({
       where: (user, { eq }) => eq(user.id, input),
     });
-    if (!user) {
-      throw new ORPCError("NOT_FOUND");
-    }
-    return user;
+    return ensureFound(user);
   });
 
+/**
+ * Get a work by its slug.
+ * @param input - Object containing the work slug.
+ * @returns The work object if found, otherwise throws NOT_FOUND.
+ */
 export const getWorkBySlug = authenticated
   .input(z.object({ slug: z.string() }))
   .handler(async ({ input }) => {
     const work = await db.query.works.findFirst({
       where: (work, { eq }) => eq(work.slug, input.slug),
     });
-    if (!work) {
-      throw new ORPCError("NOT_FOUND");
-    }
-    return work;
+    return ensureFound(work);
   });
+/**
+ * Get all works by a specific author ID.
+ * @param input - Object containing the authorId.
+ * @returns Array of works for the author.
+ */
 export const getAllWorksByAuthorId = authenticated
   .input(z.object({ authorId: z.string() }))
   .handler(async ({ input }) => {
@@ -91,6 +106,11 @@ export const getAllWorksByAuthorId = authenticated
     return works;
   });
 
+/**
+ * Create a new work.
+ * @param input - Work insert schema object.
+ * @returns null if user is not authenticated or on error.
+ */
 export const createWork = authenticated
   .input(workInsertSchema)
   .handler(async ({ input, context }) => {
@@ -106,6 +126,11 @@ export const createWork = authenticated
     }
   });
 
+/**
+ * Delete a work by its ID.
+ * @param input - Object containing the work ID.
+ * @returns null on error.
+ */
 export const deleteWork = authenticated
   .input(z.object({ id: z.string() }))
   .handler(async ({ input }) => {
@@ -117,6 +142,11 @@ export const deleteWork = authenticated
     }
   });
 
+/**
+ * Update a work by its ID.
+ * @param input - Partial work insert schema with required ID.
+ * @returns The updated work or null on error.
+ */
 export const updateWork = authenticated
   .input(workInsertSchema.partial().extend({ id: z.string() }))
   .handler(async ({ input, context }) => {
@@ -139,6 +169,11 @@ export const updateWork = authenticated
     }
   });
 
+/**
+ * Create a new author for the current user.
+ * @param input - Author insert schema object.
+ * @returns The created author or throws on error.
+ */
 export const createAuthor = authenticated
   .input(authorInsertSchema)
   .handler(async ({ input, context }) => {
@@ -157,6 +192,11 @@ export const createAuthor = authenticated
     }
   });
 
+/**
+ * Update the author for the current user.
+ * @param input - Partial author insert schema object.
+ * @returns The updated author or throws on error.
+ */
 export const updateAuthor = authenticated
   .input(authorInsertSchema.partial())
   .handler(async ({ input, context }) => {
@@ -175,19 +215,25 @@ export const updateAuthor = authenticated
     }
   });
 
+/**
+ * Get an author by the user's ID.
+ * @param input - Object containing the userId.
+ * @returns The author object if found, otherwise throws NOT_FOUND.
+ */
 export const getAuthorByUserId = authenticated
   .input(z.object({ userId: z.string() }))
   .handler(async ({ input }) => {
     const author = await db.query.authors.findFirst({
       where: (author, { eq }) => eq(author.userId, input.userId),
     });
-    if (!author) {
-      throw new ORPCError("NOT_FOUND");
-    } else {
-      return author;
-    }
+    return ensureFound(author);
   });
 
+/**
+ * Generate a presigned upload URL for a file in a bucket.
+ * @param input - Object with bucketName and objectName.
+ * @returns The presigned URL string.
+ */
 export const getUploadFileUrl = authenticated
   .input(
     z.object({
@@ -215,6 +261,11 @@ export const getUploadFileUrl = authenticated
     }
   });
 
+/**
+ * Create a new chapter draft for a work.
+ * @param input - Partial chapter insert schema with workId and title.
+ * @returns The slug of the created chapter.
+ */
 export const createChapterDraft = authenticated
   .input(
     chapterInsertSchema
@@ -254,6 +305,11 @@ export const createChapterDraft = authenticated
     }
   });
 
+/**
+ * Update a chapter by its ID.
+ * @param input - Object with chapter ID, workId, and update fields.
+ * @returns The update result or throws on error.
+ */
 export const updateChapter = authenticated
   .input(
     z.object({
@@ -310,6 +366,11 @@ export const updateChapter = authenticated
     }
   });
 
+/**
+ * Get metadata for all chapters of a work by workId.
+ * @param input - Object containing the workId.
+ * @returns Array of chapter metadata.
+ */
 export const getAllChaptersMetaByWorkId = authenticated
   .input(z.object({ workId: z.string() }))
   .handler(async ({ input }) => {
@@ -328,58 +389,67 @@ export const getAllChaptersMetaByWorkId = authenticated
     return chapters;
   });
 
+/**
+ * Get a chapter by its ID.
+ * @param input - Object containing the chapter ID.
+ * @returns The chapter object if found, otherwise throws NOT_FOUND.
+ */
 export const getChapterById = authenticated
   .input(z.object({ id: z.string() }))
   .handler(async ({ input }) => {
     const chapter = await db.query.chapters.findFirst({
       where: (chapter, { eq }) => eq(chapter.id, input.id),
     });
-    if (!chapter) {
-      throw new ORPCError("NOT_FOUND");
-    } else {
-      return chapter;
-    }
+    return ensureFound(chapter);
   });
 
+/**
+ * Get a chapter by its slug.
+ * @param input - Object containing the chapter slug.
+ * @returns The chapter object if found, otherwise throws NOT_FOUND.
+ */
 export const getChapterBySlug = authenticated
   .input(z.object({ slug: z.string() }))
   .handler(async ({ input }) => {
     const chapter = await db.query.chapters.findFirst({
       where: (chapter, { eq }) => eq(chapter.slug, input.slug),
     });
-    if (!chapter) {
-      throw new ORPCError("NOT_FOUND");
-    } else {
-      return chapter;
-    }
+    return ensureFound(chapter);
   });
 
+/**
+ * Get chapter metadata by its slug.
+ * @param input - Object containing the chapter slug.
+ * @returns The chapter metadata if found, otherwise throws NOT_FOUND.
+ */
 export const getChapterMetaBySlug = authenticated
   .input(z.object({ slug: z.string() }))
   .handler(async ({ input }) => {
     const chapter = await db.query.chapters.findFirst({
       where: (chapter, { eq }) => eq(chapter.slug, input.slug),
     });
-    if (!chapter) {
-      throw new ORPCError("NOT_FOUND");
-    } else {
-      return chapter;
-    }
+    return ensureFound(chapter);
   });
 
+/**
+ * Get a chapter version by its ID.
+ * @param input - Object containing the chapter version ID.
+ * @returns The chapter version if found, otherwise throws NOT_FOUND.
+ */
 export const getChapterVersionById = authenticated
   .input(z.object({ id: z.string() }))
   .handler(async ({ input }) => {
     const chapterVersion = await db.query.chapterVersions.findFirst({
       where: (chapterVersion, { eq }) => eq(chapterVersion.id, input.id),
     });
-    if (!chapterVersion) {
-      throw new ORPCError("NOT_FOUND");
-    } else {
-      return chapterVersion;
-    }
+    return ensureFound(chapterVersion);
   });
 
+/**
+ * Get all versions of a chapter by chapterId.
+ * @param input - Object containing the chapterId.
+ * @returns Array of chapter versions.
+ */
 export const getAllChapterVersionsByChapterId = authenticated
   .input(z.object({ chapterId: z.string() }))
   .handler(async ({ input }) => {
@@ -389,6 +459,11 @@ export const getAllChapterVersionsByChapterId = authenticated
     return chapterVersions;
   });
 
+/**
+ * Get a chapter and all its versions by the chapter's slug.
+ * @param input - Object containing the chapter slug.
+ * @returns Object with versions array and chapter object.
+ */
 export const getChapterAndVersionsByChapterSlug = authenticated
   .input(z.object({ slug: z.string() }))
   .handler(async ({ input }) => {
@@ -405,6 +480,11 @@ export const getChapterAndVersionsByChapterSlug = authenticated
     return { versions: versions, chapter: _chapterVersions[0].chapters };
   });
 
+/**
+ * Create a new version for a chapter.
+ * @param input - Object with chapterId, content, and wordCount.
+ * @returns Object with the new version ID.
+ */
 export const createChapterVersion = authenticated
   .input(
     z.object({
@@ -477,6 +557,11 @@ export const createChapterVersion = authenticated
     }
   });
 
+/**
+ * Update a chapter version by its ID.
+ * @param input - Object with version ID, content, and wordCount.
+ * @returns Object with the updated version ID.
+ */
 export const updateChapterVersion = authenticated
   .input(
     z.object({
