@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useChapter } from "@/hooks/use-chapter";
 import { useRouter } from "next/navigation";
 
-export function ChapterEditorView() {
+export function ChapterEditorView(props: { workSlug: string }) {
   const router = useRouter();
   // Centralized editor state & save logic so header owns interactions
   const [content, setContent] = useState<ChapterVersion["content"] | null>(
@@ -97,6 +97,7 @@ export function ChapterEditorView() {
     >
       <ChapterHeader
         chapter={chapter || undefined}
+        workSlug={props.workSlug}
         dirty={dirty}
         saving={saving}
         lastSavedAt={lastSavedAt}

@@ -140,7 +140,25 @@ const MDEditor = ({
   // If the initial content changes (different chapter), update editor.
   useEffect(() => {
     if (editor && content !== editor.getHTML() && content) {
-      editor.commands.setContent(content || null, { emitUpdate: false });
+      // Preprocess content to convert literal \n characters to <br> tags
+      // This handles cases where newlines are stored as literal \n in HTML content
+      let processedContent = content;
+
+      // Convert literal newlines within paragraph tags to <br> tags
+      processedContent = processedContent.replace(
+        /(<p[^>]*>)([\s\S]*?)(<\/p>)/g,
+        (match, openTag, innerContent, closeTag) => {
+          const processedInner = innerContent.replace(/\n/g, "<br>");
+          return openTag + processedInner + closeTag;
+        }
+      );
+
+      // Also handle newlines that might be outside of paragraph tags
+      processedContent = processedContent.replace(/\n/g, "<br>");
+
+      editor.commands.setContent(processedContent || null, {
+        emitUpdate: false,
+      });
     }
   }, [content, editor]);
 

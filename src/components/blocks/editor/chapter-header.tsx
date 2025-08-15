@@ -52,6 +52,7 @@ interface ChapterHeaderProps {
   onSave?: () => void | Promise<void>;
   saveMode?: "overwrite" | "new-version";
   onChangeSaveMode?: (mode: "overwrite" | "new-version") => void;
+  workSlug: string;
 }
 
 export function ChapterHeader({
@@ -62,6 +63,7 @@ export function ChapterHeader({
   onSave,
   saveMode = "overwrite",
   onChangeSaveMode,
+  workSlug,
 }: ChapterHeaderProps) {
   // If chapter is undefined, render a skeleton/loading state
   if (!chapter) {
@@ -97,7 +99,6 @@ export function ChapterHeader({
   const [pendingTitle, setPendingTitle] = useState<string | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const [_, __, fetch] = useBreadcrumbs();
-  // status changing UI/UX states
   const [pendingStatus, setPendingStatus] = useState<ChapterStatus | null>(
     null
   );
@@ -208,11 +209,27 @@ export function ChapterHeader({
 
       let success = false;
       try {
-        await client.chapter.update({
-          id: chapter.id,
-          workId: chapter.workId,
-          status: next,
-        });
+        if (
+          chapter.status === ChapterStatus.PUBLISHED &&
+          next !== ChapterStatus.PUBLISHED
+        ) {
+          await client.chapter.unpublish({
+            chapterId: chapter.id,
+            workId: chapter.workId,
+          });
+        }
+        if (next === ChapterStatus.PUBLISHED) {
+          await client.chapter.publish({
+            chapterId: chapter.id,
+            workId: chapter.workId,
+          });
+        } else {
+          await client.chapter.update({
+            id: chapter.id,
+            workId: chapter.workId,
+            status: next,
+          });
+        }
         setStatus(next);
         success = true;
       } catch (error) {

@@ -23,7 +23,13 @@ import {
   transformSlug,
 } from "./utils";
 import { dataTagErrorSymbol } from "@tanstack/react-query";
-import { generatePresignedPutUrl, uploadToR2 } from "./minio";
+import {
+  downloadFromR2,
+  generatePresignedPutUrl,
+  listObjectsWithPrefix,
+  removeFromR2,
+  uploadToR2,
+} from "./minio";
 import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 import { BUCKET_NAME } from "@/constants/misc";
 
@@ -649,10 +655,12 @@ export const updateChapterVersion = authenticated
     }
   });
 
+// Publish: push ALL available versions to R2 in a folder; clear content locally except latest snapshot metadata
 export const publishChapter = authenticated
   .input(
     z.object({
-      workSlug: z.string(),
+      // Using workId instead of workSlug for direct PK lookup (avoids extra index lookup)
+      workId: z.string(),
       chapterId: z.string(),
     })
   )
@@ -663,120 +671,248 @@ export const publishChapter = authenticated
         message: "User is not authenticated",
       });
 
-    const { workSlug, chapterId } = input;
+    const { workId, chapterId } = input;
 
     try {
-      // Fetch work + chapter + all versions in a transaction
       const { work, chapter, versions } = await db.transaction(async (tx) => {
+        // Direct lookup by workId (primary key) instead of slug
         const work = await tx.query.works.findFirst({
-          where: (w, { eq }) => eq(w.slug, workSlug),
+          where: (w, { eq }) => eq(w.id, workId),
         });
-
         if (!work)
           throw new ORPCError("NOT_FOUND", { message: "Work not found" });
-
-        // Check work ownership
-        if (work.authorId !== user.id) {
+        if (work.authorId !== user.id)
           throw new ORPCError("FORBIDDEN", {
             message: "User does not own this work",
           });
-        }
-
         const chapter = await tx.query.chapters.findFirst({
           where: (c, { eq, and }) =>
             and(eq(c.id, chapterId), eq(c.workId, work.id)),
         });
-
         if (!chapter)
           throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
-
-        // Prevent concurrent publishing - check if already published
-        if (chapter.status === ChapterStatus.PUBLISHED) {
+        if (chapter.status === ChapterStatus.PUBLISHED)
           throw new ORPCError("CONFLICT", {
             message: "Chapter is already published",
           });
-        }
-
-        // Get all versions, latest first
         const versions = await tx.query.chapterVersions.findMany({
           where: (cv, { eq }) => eq(cv.chapterId, chapter.id),
-          orderBy: (cv, { desc }) => desc(cv.createdAt),
+          orderBy: (cv, { asc }) => asc(cv.createdAt), // oldest first for deterministic naming
         });
-
-        if (!versions.length || !versions[0]?.content) {
+        if (!versions.length)
           throw new ORPCError("BAD_REQUEST", {
-            message: "No valid chapter version to publish",
+            message: "No versions to publish",
           });
-        }
-
         return { work, chapter, versions };
       });
 
-      const latestVersion = versions[0];
-
-      // Construct R2 key
-      const key = getChapterArchiveKey(work.slug, chapter.slug, chapter.id);
-
-      // Upload markdown to R2
+      // For each version we push to R2:
+      // works/{workSlug}/chapters/{chapterSlug}-{chapterId}/v{index}-{versionId}.md
+      const basePrefix = `works/${work.slug}/chapters/${chapter.slug}-${chapter.id}`;
+      for (let i = 0; i < versions.length; i++) {
+        const v = versions[i];
+        if (!v.content) continue; // skip empty
+        const objectKey = `${basePrefix}/v${i + 1}-${v.id}.md`;
+        await uploadToR2(
+          BUCKET_NAME,
+          objectKey,
+          Buffer.from(v.content, "utf-8"),
+          "text/markdown"
+        );
+      }
+      // Also create a latest pointer file (optional) containing simple JSON meta
+      const latest = versions[versions.length - 1];
+      const archiveKey = `${basePrefix}/latest.json`;
       await uploadToR2(
         BUCKET_NAME,
-        key,
-        Buffer.from(latestVersion.content, "utf-8"),
-        "text/markdown"
+        archiveKey,
+        Buffer.from(
+          JSON.stringify({
+            latestVersionId: latest.id,
+            versionCount: versions.length,
+            publishedAt: new Date().toISOString(),
+          }),
+          "utf-8"
+        ),
+        "application/json"
       );
 
-      // Delete all previous versions except the latest, and mark latest as archived
       await db.transaction(async (tx) => {
-        // More direct approach: delete all versions except the latest
-        if (versions.length > 1) {
-          const versionsToDelete = versions.slice(1);
-          for (const version of versionsToDelete) {
+        // Clear content of all versions to save DB space
+        for (const v of versions) {
+          if (v.content) {
             await tx
-              .delete(chapterVersions)
-              .where(eq(chapterVersions.id, version.id));
+              .update(chapterVersions)
+              .set({ content: "", updatedAt: new Date() })
+              .where(eq(chapterVersions.id, v.id));
           }
         }
-
-        // Mark latest version as archived (keep content but flag it)
-        await tx
-          .update(chapterVersions)
-          .set({
-            content: "", // Clear to save space, but keep version record
-            updatedAt: new Date(),
-          })
-          .where(eq(chapterVersions.id, latestVersion.id));
-
-        // Mark chapter as published
         await tx
           .update(chapters)
           .set({
             status: ChapterStatus.PUBLISHED,
             updatedAt: new Date(),
-            archiveKey: key,
+            archiveKey, // store pointer to manifest
           })
           .where(eq(chapters.id, chapter.id));
-
         await recomputeWorkWordCount(tx, chapter.workId);
       });
-
-      return { chapterId, archiveUrl: getItemUrl(key) };
+      return { chapterId, archiveUrl: getItemUrl(archiveKey) };
     } catch (error) {
-      // Enhanced error logging with context
-      console.error("Error publishing chapter:", {
+      console.error("Error publishing chapter (multi-version):", {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         userId: user.id,
-        workSlug,
+        workId,
         chapterId,
         timestamp: new Date().toISOString(),
       });
-
-      // Re-throw known errors, wrap unknown ones
-      if (error instanceof ORPCError) {
-        throw error;
-      }
+      if (error instanceof ORPCError) throw error;
       throw new ORPCError("INTERNAL_SERVER_ERROR", {
-        message: "Unknown error occurred during publish",
+        message: "Publish failed",
+      });
+    }
+  });
+
+// Unpublish: pull remote files back into DB as individual versions, restore content, then delete R2 folder
+export const unpublishChapter = authenticated
+  .input(
+    z.object({
+      // Using workId instead of workSlug for direct PK lookup (avoids extra index lookup)
+      workId: z.string(),
+      chapterId: z.string(),
+    })
+  )
+  .handler(async ({ input, context }) => {
+    const user = context.session.user;
+    if (!user)
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User is not authenticated",
+      });
+    const { workId, chapterId } = input;
+    try {
+      const { work, chapter } = await db.transaction(async (tx) => {
+        // Direct lookup by workId (primary key) instead of slug
+        const work = await tx.query.works.findFirst({
+          where: (w, { eq }) => eq(w.id, workId),
+        });
+        if (!work)
+          throw new ORPCError("NOT_FOUND", { message: "Work not found" });
+        if (work.authorId !== user.id)
+          throw new ORPCError("FORBIDDEN", {
+            message: "User does not own this work",
+          });
+        const chapter = await tx.query.chapters.findFirst({
+          where: (c, { eq, and }) =>
+            and(eq(c.id, chapterId), eq(c.workId, work.id)),
+        });
+        if (!chapter)
+          throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
+        if (chapter.status !== ChapterStatus.PUBLISHED)
+          throw new ORPCError("CONFLICT", {
+            message: "Chapter is not published",
+          });
+        return { work, chapter };
+      });
+
+      const basePrefix = `works/${work.slug}/chapters/${chapter.slug}-${chapter.id}`;
+      // List all objects for this chapter
+      const allObjects = await listObjectsWithPrefix(BUCKET_NAME, basePrefix);
+      if (!allObjects.length) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "No archived objects found",
+        });
+      }
+      // Separate manifest and version files
+      const manifestKey = chapter.archiveKey; // latest.json
+      const versionFiles = allObjects.filter(
+        (k) => k !== manifestKey && /\/v\d+-[A-Za-z0-9_-]+\.md$/.test(k)
+      );
+      // Sort version files by their v{n}- prefix ascending
+      versionFiles.sort((a, b) => {
+        const av = parseInt(a.match(/\/v(\d+)-/)?.[1] || "0", 10);
+        const bv = parseInt(b.match(/\/v(\d+)-/)?.[1] || "0", 10);
+        return av - bv;
+      });
+      if (!versionFiles.length) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "No version files found",
+        });
+      }
+      // Download each version content
+      const restoredVersions: { id: string; content: string }[] = [];
+      for (const key of versionFiles) {
+        try {
+          const buf = await downloadFromR2(BUCKET_NAME, key);
+          // Extract version id from filename pattern v{n}-{id}.md
+          const versionId = key
+            .split("/")
+            .pop()!
+            .replace(/v\d+-/, "")
+            .replace(/\.md$/, "");
+          restoredVersions.push({
+            id: versionId,
+            content: buf.toString("utf-8"),
+          });
+        } catch (e) {
+          console.error("Failed to restore version file", key, e);
+        }
+      }
+      if (!restoredVersions.length) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "Failed to restore any versions",
+        });
+      }
+
+      const latestRestored = restoredVersions[restoredVersions.length - 1];
+
+      await db.transaction(async (tx) => {
+        // Insert restored versions as new records (new IDs to avoid collisions)
+        for (const v of restoredVersions) {
+          const newId = nanoid();
+          await tx.insert(chapterVersions).values({
+            id: newId,
+            chapterId: chapter.id,
+            content: v.content,
+          });
+          // Track last inserted id as currentVersion
+          if (v === latestRestored) {
+            await tx
+              .update(chapters)
+              .set({ currentVersionId: newId })
+              .where(eq(chapters.id, chapter.id));
+          }
+        }
+        await tx
+          .update(chapters)
+          .set({
+            status: ChapterStatus.DRAFT,
+            updatedAt: new Date(),
+            archiveKey: "",
+          })
+          .where(eq(chapters.id, chapter.id));
+        await recomputeWorkWordCount(tx, chapter.workId);
+      });
+
+      // Cleanup all objects including manifest
+      await removeFromR2(BUCKET_NAME, allObjects);
+      return {
+        chapterId,
+        restored: true,
+        versionsRestored: restoredVersions.length,
+      };
+    } catch (error) {
+      console.error("Error unpublishing chapter:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: user.id,
+        workId,
+        chapterId,
+        timestamp: new Date().toISOString(),
+      });
+      if (error instanceof ORPCError) throw error;
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Unpublish failed",
       });
     }
   });
@@ -807,9 +943,10 @@ export const router = {
     getVersionById: getChapterVersionById,
     getAllVersionsByChapterId: getAllChapterVersionsByChapterId,
     getWithVersionsByChapterSlug: getChapterAndVersionsByChapterSlug,
-    // Version mutation endpoints (used by editor save dropdown)
     createVersion: createChapterVersion,
     updateVersion: updateChapterVersion,
+    publish: publishChapter,
+    unpublish: unpublishChapter,
   },
   upload: {
     file: getUploadFileUrl,

@@ -11,7 +11,7 @@ export default async function Page({
 }: {
   params: Promise<{ slug: string; chSlug: string }>;
 }) {
-  const { chSlug } = await params;
+  const { chSlug, slug } = await params;
 
   const chapter = await db.query.chapters.findFirst({
     where(fields, operators) {
@@ -26,7 +26,7 @@ export default async function Page({
   return (
     <ChapterProvider chapterSlug={chSlug}>
       <ClientOnly>
-        <ChapterEditorView />
+        <ChapterEditorView workSlug={slug} />
       </ClientOnly>
     </ChapterProvider>
   );

@@ -1,1 +1,0 @@
-ALTER TABLE "chapter_versions" ADD COLUMN "content_key" text DEFAULT '' NOT NULL;

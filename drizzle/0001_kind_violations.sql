@@ -1,1 +1,0 @@
-ALTER TABLE "works" RENAME COLUMN "cover" TO "cover_key";
