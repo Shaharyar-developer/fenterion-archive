@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { client } from "@/lib/orpc.client";
-import { ChapterVersion } from "@/db/schema";
+import { ChapterStatus, ChapterVersion } from "@/db/schema";
 import { ChapterContent } from "@/components/blocks/editor/chapter-content";
 import { ChapterHeader } from "@/components/blocks/editor/chapter-header";
 import { useLocalStorage } from "@uidotdev/usehooks";
@@ -17,6 +17,7 @@ export function ChapterEditorView(props: { workSlug: string }) {
     null
   );
   const { isPending, chapter, currentChapterVersion } = useChapter();
+  const readOnly = chapter?.status === ChapterStatus.PUBLISHED;
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -34,6 +35,7 @@ export function ChapterEditorView(props: { workSlug: string }) {
     return words;
   };
   const save = useCallback(async () => {
+    if (readOnly) return; // Prevent saving in read-only mode
     if (saving || !chapter || typeof content !== "string") return;
     setSaving(true);
     const wordCount = compute();
@@ -59,7 +61,7 @@ export function ChapterEditorView(props: { workSlug: string }) {
     } finally {
       setSaving(false);
     }
-  }, [saving, chapter, content, saveMode, currentChapterVersion]);
+  }, [readOnly, saving, chapter, content, saveMode, currentChapterVersion]);
 
   useEffect(() => {
     if (
@@ -73,10 +75,11 @@ export function ChapterEditorView(props: { workSlug: string }) {
 
   const handleContentChange = useCallback(
     (val: string) => {
+      if (readOnly) return; // Ignore edits in read-only mode (belt & suspenders)
       setContent(val);
       if (!dirty) setDirty(true);
     },
-    [dirty]
+    [dirty, readOnly]
   );
 
   useEffect(() => {
@@ -110,6 +113,7 @@ export function ChapterEditorView(props: { workSlug: string }) {
         setViewMode={setViewMode}
         content={content}
         onChange={handleContentChange}
+        readOnly={readOnly}
       />
     </div>
   );

@@ -340,7 +340,7 @@ export const updateChapter = authenticated
       title: z.string().optional(),
       content: z.string().optional(),
       status: z.enum(ChapterStatus).optional(),
-      published: z.boolean().optional(),
+      wordCount: z.number().optional(),
     })
   )
   .handler(async ({ input, context }) => {
@@ -364,29 +364,34 @@ export const updateChapter = authenticated
           .limit(1);
         if (!existing)
           throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
+        if (existing.status === ChapterStatus.PUBLISHED) {
+          throw new ORPCError("FORBIDDEN", {
+            message:
+              "Cannot edit published chapter. Published chapters are immutable.",
+          });
+        }
+
+        // Prevent status change to PUBLISHED via updateChapter
+        if (updateFields.status === ChapterStatus.PUBLISHED) {
+          throw new ORPCError("FORBIDDEN", {
+            message:
+              "Cannot set status to PUBLISHED via update. Use publish flow.",
+          });
+        }
 
         result = await tx
           .update(chapters)
           .set({
             ...updateFields,
             updatedAt: new Date(),
+            wordCount: input.wordCount ?? existing.wordCount,
           })
           .where(eq(chapters.id, id));
-
-        if (COUNT_ONLY_PUBLISHED_CHAPTERS && updateFields.status) {
-          const oldPublished = existing.status === "published";
-          const newPublished = updateFields.status === "published";
-          if (oldPublished !== newPublished) {
-            const delta = newPublished
-              ? existing.wordCount
-              : -existing.wordCount;
-            await applyWorkWordCountDelta(tx, existing.workId, delta);
-          }
-        }
       });
       return result;
     } catch (error) {
       console.error("Error updating chapter:", error);
+      if (error instanceof ORPCError) throw error;
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
   });
@@ -541,6 +546,11 @@ export const createChapterVersion = authenticated
           .limit(1);
         if (!existingChapter)
           throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
+        if (existingChapter.status === ChapterStatus.PUBLISHED) {
+          throw new ORPCError("FORBIDDEN", {
+            message: "Cannot create new version for published chapter",
+          });
+        }
         // 1. Insert the new version
         await tx.insert(chapterVersions).values({
           id: versionId,
@@ -628,6 +638,11 @@ export const updateChapterVersion = authenticated
           .limit(1);
         if (!chapterBefore)
           throw new ORPCError("NOT_FOUND", { message: "Chapter not found" });
+        if (chapterBefore.status === ChapterStatus.PUBLISHED) {
+          throw new ORPCError("FORBIDDEN", {
+            message: "Cannot edit published chapter",
+          });
+        }
 
         const updateData: Partial<typeof chapterVersions.$inferInsert> = {
           updatedAt: new Date(),

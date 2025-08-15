@@ -14,6 +14,7 @@ interface MDEditorProps {
   onChange?: (html: string) => void;
   className?: string;
   onReady?: (editor: ReturnType<typeof useEditor>) => void;
+  readOnly?: boolean;
 }
 
 const MDEditor = ({
@@ -21,6 +22,7 @@ const MDEditor = ({
   onChange,
   className,
   onReady,
+  readOnly = false,
 }: MDEditorProps) => {
   const editor = useEditor({
     extensions: [
@@ -34,6 +36,7 @@ const MDEditor = ({
       HardBreak,
     ],
     content,
+    editable: !readOnly,
     editorProps: {
       attributes: {
         class:
@@ -162,12 +165,24 @@ const MDEditor = ({
     }
   }, [content, editor]);
 
+  // Toggle editable state when readOnly changes
+  useEffect(() => {
+    if (editor) editor.setEditable(!readOnly);
+  }, [readOnly, editor]);
+
   useEffect(() => {
     if (editor && onReady) onReady(editor as any);
   }, [editor, onReady]);
 
   return (
-    <EditorContent editor={editor} className={cn(className, "md-editor")} />
+    <EditorContent
+      editor={editor}
+      className={cn(
+        className,
+        "md-editor",
+        readOnly && "opacity-90 cursor-not-allowed select-none"
+      )}
+    />
   );
 };
 

@@ -13,16 +13,6 @@ export default async function Page({
 }) {
   const { chSlug, slug } = await params;
 
-  const chapter = await db.query.chapters.findFirst({
-    where(fields, operators) {
-      return operators.eq(fields.slug, chSlug);
-    },
-  });
-
-  if (!chapter) {
-    notFound();
-  }
-
   return (
     <ChapterProvider chapterSlug={chSlug}>
       <ClientOnly>
