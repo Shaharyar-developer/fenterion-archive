@@ -4,6 +4,7 @@ import { ChapterContext } from "@/lib/context";
 import type { Chapter, ChapterVersion } from "@/db/schema";
 import { useEffect, useState } from "react";
 import { useChapterAndVersionsQuery } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const ChapterProvider = ({
   children,
@@ -19,6 +20,7 @@ export const ChapterProvider = ({
     ChapterVersion[]
   >([]);
   const { data, isPending } = useChapterAndVersionsQuery(chapterSlug);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!isPending && data) {
@@ -32,6 +34,14 @@ export const ChapterProvider = ({
       );
     }
   }, [isPending, data]);
+
+  // When status changes externally (publish/unpublish) ensure a fresh refetch for hydration.
+  useEffect(() => {
+    if (chapter?.status === undefined) return;
+    queryClient.invalidateQueries({
+      queryKey: ["chapterAndVersions", chapterSlug],
+    });
+  }, [chapter?.status, chapterSlug, queryClient]);
 
   useEffect(() => {
     console.log("ChapterProvider: chapter", currentChapterVersion);

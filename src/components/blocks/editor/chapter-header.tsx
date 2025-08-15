@@ -43,6 +43,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
+import { useChapter } from "@/hooks/use-chapter";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ChapterHeaderProps {
   chapter?: Chapter;
@@ -110,6 +112,8 @@ export function ChapterHeader({
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null
   );
+  const { setChapter } = useChapter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setTitle(chapter.title);
@@ -139,6 +143,13 @@ export function ChapterHeader({
         });
         toast.success("Chapter title saved.");
         await fetch();
+        // Optimistically update context & invalidate queries
+        setChapter((prev) =>
+          prev ? { ...prev, title: currentTitle.trim() } : prev
+        );
+        queryClient.invalidateQueries({
+          queryKey: ["chapterAndVersions", chapter.slug],
+        });
       } catch (error) {
         toast.error("Failed to save chapter title.");
         setTitle(chapter.title);
@@ -231,6 +242,11 @@ export function ChapterHeader({
           });
         }
         setStatus(next);
+        // Update context & invalidate to refetch hydrated content / status
+        setChapter((prev) => (prev ? { ...prev, status: next } : prev));
+        queryClient.invalidateQueries({
+          queryKey: ["chapterAndVersions", chapter.slug],
+        });
         success = true;
       } catch (error) {
         success = false;

@@ -40,7 +40,7 @@ export function ChapterContent({
           </div>
         ) : (
           <MDEditor
-            className={cn("h-full", readOnly && "text-muted-foreground")}
+            className={cn("h-full")}
             content={content}
             onChange={onChange}
             onReady={(e) => setEditor(e)}

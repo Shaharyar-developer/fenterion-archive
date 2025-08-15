@@ -175,14 +175,7 @@ const MDEditor = ({
   }, [editor, onReady]);
 
   return (
-    <EditorContent
-      editor={editor}
-      className={cn(
-        className,
-        "md-editor",
-        readOnly && "opacity-90 cursor-not-allowed select-none"
-      )}
-    />
+    <EditorContent editor={editor} className={cn(className, "md-editor")} />
   );
 };
 

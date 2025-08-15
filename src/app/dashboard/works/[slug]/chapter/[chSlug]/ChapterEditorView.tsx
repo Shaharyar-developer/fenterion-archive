@@ -17,13 +17,13 @@ export function ChapterEditorView(props: { workSlug: string }) {
     null
   );
   const { isPending, chapter, currentChapterVersion } = useChapter();
-  const readOnly = chapter?.status === ChapterStatus.PUBLISHED;
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [saveMode, setSaveMode] = useState<"overwrite" | "new-version">(
     "overwrite"
   );
+  const [readOnly, setReadOnly] = useState(true);
   const [viewMode, setViewMode] = useLocalStorage<"readable" | "max-width">(
     "editorView:v1",
     "max-width"
@@ -72,6 +72,22 @@ export function ChapterEditorView(props: { workSlug: string }) {
       setContent(currentChapterVersion.content);
     }
   }, [isPending, currentChapterVersion]);
+
+  // Reactively toggle read-only based on live chapter status
+  useEffect(() => {
+    setReadOnly(chapter?.status === ChapterStatus.PUBLISHED);
+  }, [chapter?.status]);
+
+  // If current chapter version content re-hydrates (e.g. after publish/unpublish) update local editor state when not dirty
+  useEffect(() => {
+    if (
+      !dirty &&
+      currentChapterVersion?.content &&
+      currentChapterVersion.content !== content
+    ) {
+      setContent(currentChapterVersion.content);
+    }
+  }, [currentChapterVersion?.content, dirty]);
 
   const handleContentChange = useCallback(
     (val: string) => {

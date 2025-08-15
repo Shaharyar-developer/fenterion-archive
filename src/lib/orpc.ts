@@ -472,7 +472,34 @@ export const getChapterVersionById = authenticated
     const chapterVersion = await db.query.chapterVersions.findFirst({
       where: (chapterVersion, { eq }) => eq(chapterVersion.id, input.id),
     });
-    return ensureFound(chapterVersion);
+    if (!chapterVersion)
+      throw new ORPCError("NOT_FOUND", {
+        message: "Chapter version not found",
+      });
+    if (chapterVersion.content) return chapterVersion;
+    // Potentially hydrated from R2 if chapter is published
+    const chapter = await db.query.chapters.findFirst({
+      where: (c, { eq }) => eq(c.id, chapterVersion.chapterId),
+    });
+    if (!chapter) return chapterVersion;
+    if (chapter.status !== ChapterStatus.PUBLISHED || !chapter.archiveKey) {
+      return chapterVersion;
+    }
+    // Derive base prefix from archiveKey (remove trailing /latest.json)
+    const basePrefix = chapter.archiveKey.replace(/\/latest\.json$/, "");
+    try {
+      const objects = await listObjectsWithPrefix(BUCKET_NAME, basePrefix);
+      const matching = objects.find((k) =>
+        k.endsWith(`${chapterVersion.id}.md`)
+      );
+      if (matching) {
+        const buf = await downloadFromR2(BUCKET_NAME, matching);
+        return { ...chapterVersion, content: buf.toString("utf-8") };
+      }
+    } catch (e) {
+      console.error("Hydration (single version) failed", e);
+    }
+    return chapterVersion;
   });
 
 /**
@@ -483,10 +510,42 @@ export const getChapterVersionById = authenticated
 export const getAllChapterVersionsByChapterId = authenticated
   .input(z.object({ chapterId: z.string() }))
   .handler(async ({ input }) => {
-    const chapterVersions = await db.query.chapterVersions.findMany({
-      where: (chapterVersion, { eq }) => eq(chapterVersion.id, input.chapterId),
+    const versions = await db.query.chapterVersions.findMany({
+      where: (chapterVersion, { eq }) =>
+        eq(chapterVersion.chapterId, input.chapterId),
+      orderBy: (cv, { asc }) => asc(cv.createdAt),
     });
-    return chapterVersions;
+    if (!versions.length) return versions;
+    const chapter = await db.query.chapters.findFirst({
+      where: (c, { eq }) => eq(c.id, input.chapterId),
+    });
+    if (!chapter) return versions;
+    if (chapter.status !== ChapterStatus.PUBLISHED || !chapter.archiveKey) {
+      return versions;
+    }
+    // Hydrate from R2 if content cleared
+    const basePrefix = chapter.archiveKey.replace(/\/latest\.json$/, "");
+    try {
+      const objects = await listObjectsWithPrefix(BUCKET_NAME, basePrefix);
+      const hydrated = await Promise.all(
+        versions.map(async (v) => {
+          if (v.content) return v; // already present
+          const objKey = objects.find((k) => k.endsWith(`${v.id}.md`));
+          if (!objKey) return v;
+          try {
+            const buf = await downloadFromR2(BUCKET_NAME, objKey);
+            return { ...v, content: buf.toString("utf-8") };
+          } catch (e) {
+            console.error("Hydrate version failed", objKey, e);
+            return v;
+          }
+        })
+      );
+      return hydrated;
+    } catch (e) {
+      console.error("Hydration (all versions) failed", e);
+      return versions;
+    }
   });
 
 /**
@@ -506,8 +565,35 @@ export const getChapterAndVersionsByChapterSlug = authenticated
     if (_chapterVersions.length === 0) {
       throw new ORPCError("NOT_FOUND");
     }
-    const versions = _chapterVersions.map((row) => row.chapter_versions);
-    return { versions: versions, chapter: _chapterVersions[0].chapters };
+    const chapter = _chapterVersions[0].chapters;
+    let versions = _chapterVersions.map((row) => row.chapter_versions);
+    // If published & contents empty, hydrate from R2
+    if (
+      chapter.status === ChapterStatus.PUBLISHED &&
+      chapter.archiveKey &&
+      versions.every((v) => !v.content)
+    ) {
+      const basePrefix = chapter.archiveKey.replace(/\/latest\.json$/, "");
+      try {
+        const objects = await listObjectsWithPrefix(BUCKET_NAME, basePrefix);
+        versions = await Promise.all(
+          versions.map(async (v) => {
+            const objKey = objects.find((k) => k.endsWith(`${v.id}.md`));
+            if (!objKey) return v;
+            try {
+              const buf = await downloadFromR2(BUCKET_NAME, objKey);
+              return { ...v, content: buf.toString("utf-8") };
+            } catch (e) {
+              console.error("Hydrate version failed", objKey, e);
+              return v;
+            }
+          })
+        );
+      } catch (e) {
+        console.error("Hydration (chapter+versions) failed", e);
+      }
+    }
+    return { versions, chapter };
   });
 
 /**
