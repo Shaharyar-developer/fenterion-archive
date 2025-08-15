@@ -242,6 +242,7 @@ export const chapterVersions = pgTable("chapter_versions", {
     .generatedAlwaysAsIdentity()
     .notNull(),
   content: text("content").notNull().default(""),
+  contentKey: text("content_key").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

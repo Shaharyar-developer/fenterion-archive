@@ -32,6 +32,16 @@ import { Separator } from "@/components/ui/separator";
 import { motion, AnimatePresence } from "motion/react";
 import { client } from "@/lib/orpc.client";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
 
 interface ChapterHeaderProps {
@@ -87,6 +97,18 @@ export function ChapterHeader({
   const [pendingTitle, setPendingTitle] = useState<string | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const [_, __, fetch] = useBreadcrumbs();
+  // status changing UI/UX states
+  const [pendingStatus, setPendingStatus] = useState<ChapterStatus | null>(
+    null
+  );
+  const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const [confirmStatusInput, setConfirmStatusInput] = useState("");
+  const [statusProgress, setStatusProgress] = useState(0); // 0-100
+  const [statusProgressDone, setStatusProgressDone] = useState(false);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
 
   useEffect(() => {
     setTitle(chapter.title);
@@ -149,26 +171,104 @@ export function ChapterHeader({
       [ChapterStatus.ARCHIVED]: { label: "Archived", variant: "secondary" },
     } as const;
 
-  const changeStatus = async (next: ChapterStatus) => {
-    if (next === status) return;
-    toast.info(`Confirm status change to ${statusMeta[next].label}?`, {
-      action: {
-        label: "Confirm",
-        onClick: async () => {
-          try {
-            await client.chapter.update({
-              id: chapter.id,
-              workId: chapter.workId,
-              status: next,
-            });
-            setStatus(next);
-          } catch (error) {
-            toast.error(`Failed to change status.`);
-          }
-        },
-      },
+  const requestStatusChange = (next: ChapterStatus) => {
+    if (next === status || changingStatus) return;
+    setPendingStatus(next);
+    setConfirmStatusOpen(true);
+    setConfirmStatusInput("");
+  };
+
+  const executeStatusChange = async () => {
+    if (!pendingStatus || pendingStatus === status) {
+      setConfirmStatusOpen(false);
+      return;
+    }
+    const next = pendingStatus;
+    const label = statusMeta[next].label;
+
+    const perform = async () => {
+      setChangingStatus(true);
+      setStatusProgress(0);
+      setStatusProgressDone(false);
+      const startTime = performance.now();
+      const minTotalDuration = 2200; // ms – faked longer than API call
+      const rampAfterDoneDelay = 300; // delay before final 100%
+
+      // artificial progress (capped at 85% until request finishes)
+      if (progressIntervalRef.current)
+        clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = setInterval(() => {
+        setStatusProgress((prev) => {
+          const cap = statusProgressDone ? 100 : 85;
+          if (prev >= cap) return prev;
+          const increment = Math.random() * 7 + 4; // 4-11%
+          return Math.min(cap, prev + increment);
+        });
+      }, 220);
+
+      let success = false;
+      try {
+        await client.chapter.update({
+          id: chapter.id,
+          workId: chapter.workId,
+          status: next,
+        });
+        setStatus(next);
+        success = true;
+      } catch (error) {
+        success = false;
+      }
+
+      setStatusProgressDone(true);
+      const elapsed = performance.now() - startTime;
+      const remainingTotal = minTotalDuration - elapsed;
+      if (remainingTotal > 0) {
+        await new Promise((r) => setTimeout(r, remainingTotal));
+      }
+      setStatusProgress((prev) => (prev < 90 ? 90 : prev));
+      await new Promise((r) => setTimeout(r, rampAfterDoneDelay));
+      setStatusProgress(100);
+      await new Promise((r) => setTimeout(r, 350));
+
+      // cleanup visual state
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setChangingStatus(false);
+      setConfirmStatusOpen(false);
+      setPendingStatus(null);
+      setConfirmStatusInput("");
+      setTimeout(() => {
+        setStatusProgress(0);
+        setStatusProgressDone(false);
+      }, 400);
+
+      if (!success) throw new Error(`Failed to set status to ${label}.`);
+      return { label };
+    };
+
+    toast.promise(perform(), {
+      loading: `Changing status to ${label}…`,
+      success: ({ label }) => `${label} status applied`,
+      error: (err) => err.message || `Failed to change status`,
     });
   };
+
+  // Reset typed confirmation when dialog closes without action
+  useEffect(() => {
+    if (!confirmStatusOpen) {
+      setConfirmStatusInput("");
+    }
+  }, [confirmStatusOpen]);
+
+  // Cleanup any running interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current)
+        clearInterval(progressIntervalRef.current);
+    };
+  }, []);
 
   // Keyboard UX for title edit
   useEffect(() => {
@@ -382,14 +482,19 @@ export function ChapterHeader({
                   <Button
                     variant={"ghost"}
                     aria-label="Change chapter status"
-                    className="h-9 px-2 gap-2"
+                    className={cn(
+                      "h-9 px-2 gap-2 relative",
+                      changingStatus && "pointer-events-none opacity-70"
+                    )}
                   >
                     <motion.span
-                      key={status}
+                      key={changingStatus ? "changing" : status}
                       layoutId="chapter-status-dot"
                       className={cn(
                         "size-2 rounded-full",
-                        statusColor[safeStatus],
+                        changingStatus
+                          ? "bg-primary animate-pulse"
+                          : statusColor[safeStatus],
                         "shadow-inner"
                       )}
                       initial={{ scale: 0.6, opacity: 0 }}
@@ -407,24 +512,41 @@ export function ChapterHeader({
                       <Badge
                         variant={statusMeta[safeStatus].variant as any}
                         className={cn(
-                          "text-[11px] px-2 py-0.5 border bg-transparent leading-none",
+                          "text-[11px] px-2 py-0.5 border bg-transparent leading-none flex items-center gap-1",
                           safeStatus === ChapterStatus.DRAFT &&
                             "border-amber-500/40 text-amber-700 dark:text-amber-300",
                           safeStatus === ChapterStatus.ARCHIVED && "opacity-70"
                         )}
                       >
-                        {statusMeta[safeStatus].label}
+                        {changingStatus ? (
+                          <>
+                            <Loader2 className="size-3 animate-spin" />
+                            Updating…
+                          </>
+                        ) : (
+                          statusMeta[safeStatus].label
+                        )}
                       </Badge>
                     </motion.span>
                     <ChevronDown className="size-3 opacity-60" />
+                    {changingStatus && (
+                      <motion.span
+                        layoutId="status-progress-overlay"
+                        className="absolute inset-0 rounded-md ring-2 ring-primary/50"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      />
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   {Object.values(ChapterStatus).map((s) => (
                     <DropdownMenuItem
                       key={s}
+                      disabled={changingStatus || s === status}
                       className="flex items-center gap-2"
-                      onClick={() => changeStatus(s)}
+                      onClick={() => requestStatusChange(s)}
                     >
                       <span
                         className={cn(
@@ -433,7 +555,12 @@ export function ChapterHeader({
                         )}
                       />
                       {s === status && <Check className="size-3" />}
-                      <span className="capitalize">{s.toLowerCase()}</span>
+                      <span className="capitalize flex-1">
+                        {s.toLowerCase()}
+                      </span>
+                      {pendingStatus === s && confirmStatusOpen && (
+                        <Loader2 className="size-3 animate-spin" />
+                      )}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -487,8 +614,100 @@ export function ChapterHeader({
               </span>
             )}
           </div>
+          {/* status change progress bar */}
+          <AnimatePresence>
+            {changingStatus && (
+              <motion.div
+                key="status-progress-bar"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="relative h-1 overflow-hidden rounded bg-primary/10 mx-0 mt-1"
+                aria-label="Status change progress"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(statusProgress)}
+              >
+                <motion.div
+                  key="status-progress-fill"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${statusProgress}%` }}
+                  transition={{
+                    type: "tween",
+                    ease: "easeOut",
+                    duration: 0.25,
+                  }}
+                  className={cn(
+                    "h-full bg-primary relative",
+                    statusProgressDone && statusProgress >= 100 && "bg-primary"
+                  )}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
+      {/* Confirm status change dialog */}
+      <AlertDialog open={confirmStatusOpen} onOpenChange={setConfirmStatusOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change chapter status</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingStatus
+                ? `This will change the status to ${statusMeta[pendingStatus].label}. This action may take a few moments while we process background tasks.`
+                : "Select a status."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingStatus && (
+            <div className="space-y-2 py-2">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Type{" "}
+                <span className="font-semibold">
+                  {statusMeta[pendingStatus].label}
+                </span>{" "}
+                below to confirm.
+              </p>
+              <Input
+                autoFocus
+                placeholder={statusMeta[pendingStatus].label}
+                value={confirmStatusInput}
+                onChange={(e) => setConfirmStatusInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    confirmStatusInput.trim().toLowerCase() ===
+                      statusMeta[pendingStatus].label.toLowerCase() &&
+                    !changingStatus
+                  ) {
+                    e.preventDefault();
+                    void executeStatusChange();
+                  }
+                }}
+              />
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={changingStatus}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                changingStatus ||
+                !pendingStatus ||
+                confirmStatusInput.trim().toLowerCase() !==
+                  statusMeta[pendingStatus].label.toLowerCase()
+              }
+              onClick={() => void executeStatusChange()}
+            >
+              {changingStatus && (
+                <Loader2 className="size-4 animate-spin mr-2" />
+              )}
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }
