@@ -224,6 +224,7 @@ export const chapters = pgTable("chapters", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   currentVersionId: text("current_version_id").notNull(),
   status: chapterStatusEnum("status").default(ChapterStatus.DRAFT).notNull(),
+  archiveKey: text("archive_key").notNull().default(""),
   title: varchar("title", { length: 255 }).notNull(),
   wordCount: integer("word_count").default(0).notNull(),
 });
@@ -242,7 +243,6 @@ export const chapterVersions = pgTable("chapter_versions", {
     .generatedAlwaysAsIdentity()
     .notNull(),
   content: text("content").notNull().default(""),
-  contentKey: text("content_key").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

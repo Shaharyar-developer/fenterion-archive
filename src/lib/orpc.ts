@@ -10,17 +10,27 @@ import {
   chapterInsertSchema,
   chapters,
   ChapterStatus,
+  chapterStatusEnum,
   chapterVersions,
   workInsertSchema,
   works,
 } from "@/db/schema";
-import { slugify, transformSlug } from "./utils";
+import {
+  getChapterArchiveKey,
+  getChapterUrl,
+  getItemUrl,
+  slugify,
+  transformSlug,
+} from "./utils";
 import { dataTagErrorSymbol } from "@tanstack/react-query";
 import { generatePresignedPutUrl, uploadToR2 } from "./minio";
 import { and, desc, eq, notInArray, sql } from "drizzle-orm";
+import { BUCKET_NAME } from "@/constants/misc";
 
 function ensureFound<T>(entity: T | null): T {
-  if (!entity) throw new ORPCError("NOT_FOUND");
+  if (!entity) {
+    throw new ORPCError("NOT_FOUND");
+  }
   return entity;
 }
 
@@ -620,6 +630,101 @@ export const updateChapterVersion = authenticated
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
   });
+
+export const publishChapter = authenticated
+  .input(
+    z.object({
+      workSlug: z.string(),
+      chapterId: z.string(),
+    })
+  )
+  .handler(async ({ input, context }) => {
+    const user = context.session.user;
+    if (!user) throw new ORPCError("UNAUTHORIZED");
+
+    const { workSlug, chapterId } = input;
+
+    try {
+      // Fetch work + chapter + all versions in a transaction
+      const { work, chapter, versions } = await db.transaction(async (tx) => {
+        const work = await tx.query.works.findFirst({
+          where: (w, { eq }) => eq(w.slug, workSlug),
+        });
+        ensureFound(work);
+        if (!work) throw new ORPCError("NOT_FOUND");
+
+        const chapter = await tx.query.chapters.findFirst({
+          where: (c, { eq, and }) =>
+            and(eq(c.id, chapterId), eq(c.workId, work.id)),
+        });
+        ensureFound(chapter);
+        if (!chapter) throw new ORPCError("NOT_FOUND");
+
+        // Get all versions, latest first
+        const versions = await tx.query.chapterVersions.findMany({
+          where: (cv, { eq }) => eq(cv.chapterId, chapter.id),
+          orderBy: (cv, { desc }) => desc(cv.createdAt),
+        });
+        ensureFound(versions);
+        if (!versions[0]) throw new ORPCError("NOT_FOUND");
+
+        return { work, chapter, versions };
+      });
+
+      const latestVersion = versions[0];
+
+      // Construct R2 key
+      const key = getChapterArchiveKey(work.slug, chapter.slug, chapter.id);
+
+      // Upload markdown to R2
+      await uploadToR2(
+        BUCKET_NAME,
+        key,
+        Buffer.from(latestVersion.content, "utf-8"),
+        "text/markdown"
+      );
+
+      // Delete all previous versions except the latest, and clear out latest content
+      await db.transaction(async (tx) => {
+        // Delete all but the latest version
+        if (versions.length > 1) {
+          const idsToDelete = versions.slice(1).map((v) => v.id);
+          await tx.delete(chapterVersions).where(
+            and(
+              eq(chapterVersions.chapterId, chapter.id),
+              notInArray(
+                chapterVersions.id,
+                idsToDelete.length ? idsToDelete : ["___never___"]
+              ) // never matches if empty
+            )
+          );
+        }
+        // Clear out content of the latest version
+        await tx
+          .update(chapterVersions)
+          .set({ content: "", updatedAt: new Date() })
+          .where(eq(chapterVersions.id, latestVersion.id));
+
+        // Mark published
+        await tx
+          .update(chapters)
+          .set({
+            status: ChapterStatus.PUBLISHED,
+            updatedAt: new Date(),
+            archiveKey: key,
+          })
+          .where(eq(chapters.id, chapter.id));
+
+        await recomputeWorkWordCount(tx, chapter.workId);
+      });
+
+      return { chapterId, archiveUrl: getItemUrl(key) };
+    } catch (error) {
+      console.error("Error publishing chapter:", error);
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+  });
+
 
 export const router = {
   user: {

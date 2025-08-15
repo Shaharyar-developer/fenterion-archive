@@ -81,6 +81,12 @@ export function extractExtension(filename: string): string {
 export function getCoverUrl(key: string) {
   return `${env.NEXT_PUBLIC_R2_CDN}/${key}`;
 }
+export function getChapterUrl(key: string) {
+  return `${env.NEXT_PUBLIC_R2_CDN}/${key}`;
+}
+export function getItemUrl(key: string) {
+  return `${env.NEXT_PUBLIC_R2_CDN}/${key}`;
+}
 
 export function getCoverKey(
   cover: File,
@@ -90,6 +96,14 @@ export function getCoverKey(
   if (!cover) return null;
   return `covers/${slug}-${id}.${extractExtension(cover.name)}`;
 }
+export function getChapterArchiveKey(
+  workSlug: string,
+  chapterSlug: string,
+  chapterId: string
+) {
+  return `works/${workSlug}/chapters/${chapterSlug}-${chapterId}.md`;
+}
+
 
 export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

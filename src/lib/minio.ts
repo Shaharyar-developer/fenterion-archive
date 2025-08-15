@@ -14,7 +14,7 @@ export const uploadToR2 = async (
   objectName: string,
   file: Buffer,
   contentType: string
-): Promise<any> => {
+): Promise<unknown> => {
   if (!bucketName || !objectName || !file || !contentType) {
     throw new Error("Missing required upload parameters.");
   }
