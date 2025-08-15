@@ -21,7 +21,7 @@ import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { Home, Library } from "lucide-react";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumbs";
-import * as m from "motion/react";
+import { motion as m } from "motion/react";
 import Link from "next/link";
 
 const items = [
@@ -69,37 +69,99 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           {items.map((item) => {
             const isActive = item.url === activeHref;
             return (
-              <SidebarMenuItem className="px-1 relative" key={item.title}>
-                <div
-                  className={cn(
-                    "absolute h-full w-1 bg-primary left-0 rounded-r-3xl",
-                    !isActive && "hidden"
-                  )}
-                />
-                <SidebarMenuButton
-                  size={"lg"}
-                  isActive={isActive}
-                  disabled={isActive}
-                  asChild={!isActive}
-                  className={cn(
-                    "transition-all rounded-3xl bg-secondary/25",
-                    isActive &&
-                      "pointer-events-none cursor-default rounded-l-none"
-                  )}
-                  aria-current={isActive ? "page" : undefined}
+              <SidebarMenuItem className="px-2 relative" key={item.title}>
+                {isActive && (
+                  <m.div
+                    layoutId="sidebar-accent"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1 bg-primary rounded-r-3xl"
+                    transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                  />
+                )}
+                <m.div
+                  whileHover={!isActive ? { x: 2 } : undefined}
+                  whileTap={!isActive ? { scale: 0.97 } : undefined}
+                  transition={{
+                    type: "spring",
+                    stiffness: 400,
+                    damping: 30,
+                    mass: 0.8,
+                  }}
                 >
-                  {isActive ? (
-                    <>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </>
-                  ) : (
-                    <Link prefetch href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  )}
-                </SidebarMenuButton>
+                  <SidebarMenuButton
+                    size={"lg"}
+                    isActive={isActive}
+                    disabled={isActive}
+                    asChild={!isActive}
+                    className={cn(
+                      "relative transition-colors rounded-3xl overflow-hidden",
+                      isActive && "pointer-events-none cursor-default shadow-sm"
+                    )}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    {isActive ? (
+                      <>
+                        <m.span
+                          key="icon-active"
+                          layout
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 300,
+                            damping: 25,
+                          }}
+                        >
+                          <item.icon />
+                        </m.span>
+                        <m.span
+                          key="text-active"
+                          layout
+                          initial={{ y: 4, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 300,
+                            damping: 26,
+                          }}
+                        >
+                          {item.title}
+                        </m.span>
+                      </>
+                    ) : (
+                      <Link
+                        prefetch
+                        href={item.url}
+                        className="flex items-center gap-2"
+                      >
+                        <m.span
+                          key="icon-inactive"
+                          layout
+                          initial={false}
+                          whileHover={{ rotate: 2 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 260,
+                            damping: 18,
+                          }}
+                        >
+                          <item.icon />
+                        </m.span>
+                        <m.span
+                          key="text-inactive"
+                          layout
+                          initial={false}
+                          transition={{
+                            type: "spring",
+                            stiffness: 260,
+                            damping: 24,
+                          }}
+                        >
+                          {item.title}
+                        </m.span>
+                      </Link>
+                    )}
+                  </SidebarMenuButton>
+                </m.div>
               </SidebarMenuItem>
             );
           })}

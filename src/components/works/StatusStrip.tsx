@@ -360,6 +360,73 @@ function DeleteWorkDialog({
   );
 }
 
+// Generic phrase confirmation dialog (used for publish / unpublish)
+function PhraseConfirmDialog({
+  open,
+  onOpenChange,
+  loading,
+  actionLabel,
+  intent, // short imperative lowercase e.g. "publish" | "unpublish"
+  description,
+  onConfirm,
+  workTitle,
+  destructive,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  loading: boolean;
+  actionLabel: string;
+  intent: string;
+  description: React.ReactNode;
+  onConfirm: () => void;
+  workTitle: string;
+  destructive?: boolean;
+}) {
+  const [input, setInput] = useState("");
+  const requiredPhrase = `${intent} ${workTitle}`;
+  const valid = input.trim() === requiredPhrase;
+  useEffect(() => {
+    if (!open) setInput("");
+  }, [open]);
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="capitalize">{actionLabel} this work?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {description}
+            <br />
+            To confirm, type {" "}
+            <span className="font-mono font-semibold">{requiredPhrase}</span> below.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <Input
+          autoFocus
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={requiredPhrase}
+            disabled={loading}
+            className="mt-2"
+        />
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!valid || loading}
+            className={destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
+            onClick={() => {
+              if (!valid || loading) return;
+              onConfirm();
+            }}
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+            {actionLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 export function StatusStrip({
   work,
   publishable,
@@ -372,10 +439,13 @@ export function StatusStrip({
   const meta = WORK_STATUS_META[work.status];
   const { run, loading } = useAsyncAction();
   const publishing = loading === "Publish";
+  const unpublishing = loading === "Unpublish";
   const deleting = loading === "Delete";
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [coverDialogOpen, setCoverDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
   const router = useRouter();
 
   const handleDelete = async () => {
@@ -393,6 +463,15 @@ export function StatusStrip({
       await client.work.update({
         id: work.id,
         status: WorkStatus.PUBLISHED,
+      });
+    });
+  };
+
+  const handleUnpublish = async () => {
+    run("Unpublish", async () => {
+      await client.work.update({
+        id: work.id,
+        status: WorkStatus.DRAFT,
       });
     });
   };
@@ -476,7 +555,7 @@ export function StatusStrip({
                   onSelect={(e) => {
                     e.preventDefault();
                     if (!publishable || publishing) return;
-                    handlePublish();
+                    setPublishDialogOpen(true);
                   }}
                 >
                   {publishing ? (
@@ -520,9 +599,19 @@ export function StatusStrip({
           {unpublishable && (
             <DropdownMenuItem
               className="gap-2"
-              onSelect={(e) => e.preventDefault()}
+              disabled={unpublishing}
+              onSelect={(e) => {
+                e.preventDefault();
+                if (unpublishing) return;
+                setUnpublishDialogOpen(true);
+              }}
             >
-              <ArchiveRestore className="h-4 w-4" /> Unpublish
+              {unpublishing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArchiveRestore className="h-4 w-4" />
+              )}
+              Unpublish
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
@@ -565,6 +654,48 @@ export function StatusStrip({
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         work={work}
+      />
+      {/* Publish Confirmation Dialog with phrase */}
+      <PhraseConfirmDialog
+        open={publishDialogOpen}
+        onOpenChange={setPublishDialogOpen}
+        loading={publishing}
+        actionLabel="Publish"
+        intent="publish"
+        workTitle={work.title}
+        description={
+          <>
+            Publishing will make{" "}
+            <span className="font-semibold">{work.title}</span> publicly visible
+            to readers. Reader libraries, progress, and metrics will begin
+            tracking immediately.
+          </>
+        }
+        onConfirm={() => {
+          handlePublish();
+          setPublishDialogOpen(false);
+        }}
+      />
+      {/* Unpublish Confirmation Dialog with phrase */}
+      <PhraseConfirmDialog
+        open={unpublishDialogOpen}
+        onOpenChange={setUnpublishDialogOpen}
+        loading={unpublishing}
+        actionLabel="Unpublish"
+        intent="unpublish"
+        workTitle={work.title}
+        description={
+          <>
+            Unpublishing will remove{" "}
+            <span className="font-semibold">{work.title}</span> from public
+            listings. Existing reader progress and comments remain. You can
+            publish again later.
+          </>
+        }
+        onConfirm={() => {
+          handleUnpublish();
+          setUnpublishDialogOpen(false);
+        }}
       />
     </div>
   );
