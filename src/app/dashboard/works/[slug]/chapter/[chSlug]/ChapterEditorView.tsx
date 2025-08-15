@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { client } from "@/lib/orpc.client";
 import { ChapterStatus, ChapterVersion } from "@/db/schema";
 import { ChapterContent } from "@/components/blocks/editor/chapter-content";
@@ -24,9 +24,13 @@ export function ChapterEditorView(props: { workSlug: string }) {
     setCurrentChapterVersion,
     prevChapterVersions,
     setPrevChapterVersions,
+  previewChapterVersion,
+  setPreviewChapterVersion,
   } = useChapter();
   const queryClient = useQueryClient();
   const [dirty, setDirty] = useState(false);
+  // Tracks the last persisted (saved or freshly loaded) content to compute true dirtiness
+  const lastPersistedRef = useRef<string>("");
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [saveMode, setSaveMode] = useState<"overwrite" | "new-version">(
@@ -77,6 +81,7 @@ export function ChapterEditorView(props: { workSlug: string }) {
       }
       setDirty(false);
       setLastSavedAt(new Date());
+      lastPersistedRef.current = content || "";
       queryClient.invalidateQueries({
         queryKey: ["chapterAndVersions", chapter.slug],
       });
@@ -98,35 +103,29 @@ export function ChapterEditorView(props: { workSlug: string }) {
     queryClient,
   ]);
 
+  // Initialize content from current version (not preview) when first ready
   useEffect(() => {
-    if (
-      typeof currentChapterVersion?.content !== "undefined" &&
-      !content &&
-      !isPending
-    ) {
+    if (!isPending && !content && currentChapterVersion?.content) {
       setContent(currentChapterVersion.content);
+      lastPersistedRef.current = currentChapterVersion.content;
     }
-  }, [isPending, currentChapterVersion]);
+  }, [isPending, currentChapterVersion?.id]);
 
   // Reactively toggle read-only:
   // 1. Always read-only if chapter is published.
-  // 2. Read-only if user is viewing a historical (non-latest) version.
+  // 2. Read-only if user is previewing a historical version.
   useEffect(() => {
     if (!chapter || !currentChapterVersion) return;
-    const allVersions = [currentChapterVersion, ...prevChapterVersions];
-    const maxVersionNumber = allVersions.reduce(
-      (m, v) => Math.max(m, v.versionNumber || 0),
-      0
-    );
-    const isHistorical =
-      (currentChapterVersion.versionNumber || 0) < maxVersionNumber;
     if (chapter.status === ChapterStatus.PUBLISHED) {
       setReadOnly(true);
       setReadOnlyReason("Published (read-only)");
-    } else if (isHistorical) {
+    } else if (
+      previewChapterVersion &&
+      previewChapterVersion.id !== currentChapterVersion.id
+    ) {
       setReadOnly(true);
       setReadOnlyReason(
-        `Viewing historical version v${currentChapterVersion.versionNumber} (read-only)`
+        `Previewing version v${previewChapterVersion.versionNumber}`
       );
     } else {
       setReadOnly(false);
@@ -135,29 +134,50 @@ export function ChapterEditorView(props: { workSlug: string }) {
   }, [
     chapter?.status,
     currentChapterVersion?.id,
-    currentChapterVersion?.versionNumber,
+    previewChapterVersion?.id,
     prevChapterVersions,
   ]);
 
   // If current chapter version content re-hydrates (e.g. after publish/unpublish) update local editor state when not dirty
+  // When switching preview version update displayed content (without marking dirty)
   useEffect(() => {
-    if (
-      !dirty &&
-      currentChapterVersion?.content &&
-      currentChapterVersion.content !== content
-    ) {
-      setContent(currentChapterVersion.content);
+    if (previewChapterVersion && previewChapterVersion.content) {
+      setContent(previewChapterVersion.content);
+      return;
     }
-  }, [currentChapterVersion?.content, dirty]);
+    if (!previewChapterVersion && currentChapterVersion?.content) {
+      setContent(currentChapterVersion.content);
+      if (!dirty) lastPersistedRef.current = currentChapterVersion.content;
+    }
+  }, [previewChapterVersion?.id, currentChapterVersion?.content]);
 
   const handleContentChange = useCallback(
     (val: string) => {
       if (readOnly) return; // Ignore edits in read-only mode (belt & suspenders)
       setContent(val);
-      if (!dirty) setDirty(true);
+  const base = lastPersistedRef.current;
+  const changed = (val || "") !== base;
+  setDirty(changed);
     },
     [dirty, readOnly]
   );
+
+  // After exiting a preview, force reload of latest editable version content (even if 'dirty' was true previously due to edits before preview)
+  const wasPreviewingRef = useRef(false);
+  useEffect(() => {
+    const was = wasPreviewingRef.current;
+    const isNow = !!previewChapterVersion;
+    if (was && !isNow) {
+      // just exited preview
+      if (currentChapterVersion?.content) {
+        setContent(currentChapterVersion.content);
+        // Align dirty flag with latest persisted content (avoid accidental save of stale preview text)
+  lastPersistedRef.current = currentChapterVersion.content;
+  setDirty(false);
+      }
+    }
+    wasPreviewingRef.current = isNow;
+  }, [previewChapterVersion?.id, currentChapterVersion?.content]);
 
   useEffect(() => {
     if (!isPending && !chapter) {

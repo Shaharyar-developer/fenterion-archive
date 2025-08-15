@@ -39,6 +39,11 @@ type ChapterContextType = {
   setPrevChapterVersions: React.Dispatch<
     React.SetStateAction<ChapterVersion[]>
   >;
+  // Optional preview (historical) version user is inspecting without changing current editable version
+  previewChapterVersion: ChapterVersion | null;
+  setPreviewChapterVersion: React.Dispatch<
+    React.SetStateAction<ChapterVersion | null>
+  >;
 
   isPending?: boolean;
 };

@@ -99,6 +99,8 @@ export function ChapterHeader({
   const [confirmStatusInput, setConfirmStatusInput] = useState("");
   const [statusProgress, setStatusProgress] = useState(0); // 0-100
   const [statusProgressDone, setStatusProgressDone] = useState(false);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null);
+  const { previewChapterVersion, setPreviewChapterVersion } = useChapter();
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null
   );
@@ -574,26 +576,113 @@ export function ChapterHeader({
                                             : "—"}
                                         </span>
                                       </div>
-                                      {!isCurrent && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-6 mt-1 text-[11px] px-2"
-                                          onClick={() =>
-                                            handleSelectVersion(v.id)
-                                          }
-                                        >
-                                          View this version
-                                        </Button>
-                                      )}
+                                      <div className="flex flex-col gap-1 mt-1">
+                                        {isCurrent ? (
+                                          <Badge variant="secondary" className="w-fit h-5 text-[10px]">
+                                            Latest editable
+                                          </Badge>
+                                        ) : previewChapterVersion?.id === v.id ? (
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-6 text-[11px] px-2"
+                                              onClick={() => setPreviewChapterVersion(null)}
+                                            >
+                                              Close Preview
+                                            </Button>
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              disabled={restoringVersionId === v.id}
+                                              className="h-6 text-[11px] px-2"
+                                              onClick={async () => {
+                                                if (!chapter) return;
+                                                try {
+                                                  setRestoringVersionId(v.id);
+                                                  const versionContent = v.content || "";
+                                                  const wc = versionContent
+                                                    .replace(/\s+/g, " ")
+                                                    .trim()
+                                                    .split(" ")
+                                                    .filter(Boolean).length;
+                                                  const { id: newId } = await client.chapter.createVersion({
+                                                    chapterId: chapter.id,
+                                                    content: versionContent,
+                                                    wordCount: wc,
+                                                  });
+                                                  setPrevChapterVersions((prev) =>
+                                                    currentChapterVersion
+                                                      ? [currentChapterVersion, ...prev]
+                                                      : prev
+                                                  );
+                                                  setCurrentChapterVersion({
+                                                    id: newId,
+                                                    chapterId: chapter.id,
+                                                    content: versionContent,
+                                                    createdAt: new Date(),
+                                                    updatedAt: new Date(),
+                                                    versionNumber:
+                                                      (currentChapterVersion?.versionNumber || 0) + 1,
+                                                  } as any);
+                                                  setPreviewChapterVersion(null);
+                                                  toast.success(
+                                                    `Restored version v${
+                                                      v.versionNumber || "?"
+                                                    } as new latest`
+                                                  );
+                                                } catch (e) {
+                                                  console.error("Restore version failed", e);
+                                                  toast.error("Restore failed");
+                                                } finally {
+                                                  setRestoringVersionId(null);
+                                                }
+                                              }}
+                                            >
+                                              {restoringVersionId === v.id ? (
+                                                <Loader2 className="size-3 animate-spin" />
+                                              ) : (
+                                                "Restore"
+                                              )}
+                                            </Button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex gap-2">
+                                            {!isCurrent && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span>
+                                                    <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                      className="h-6 text-[11px] px-2"
+                                                      disabled={!!dirty}
+                                                      onClick={() =>
+                                                        setPreviewChapterVersion(v)
+                                                      }
+                                                    >
+                                                      Preview
+                                                    </Button>
+                                                  </span>
+                                                </TooltipTrigger>
+                                                {dirty && (
+                                                  <TooltipContent side="top" className="text-xs">
+                                                    Save or discard changes before previewing older versions.
+                                                  </TooltipContent>
+                                                )}
+                                              </Tooltip>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   );
                                 })}
                               </div>
                               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                Selecting a version switches the editor content.
-                                Only the current version can be edited; others
-                                are read-only until promoted by saving a new
+                                Preview shows a historical version (read-only).
+                                Close preview returns to latest. Restore clones
+                                the previewed version as a new latest editable
                                 version.
                               </p>
                             </PopoverContent>

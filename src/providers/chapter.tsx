@@ -19,6 +19,8 @@ export const ChapterProvider = ({
   const [prevChapterVersions, setPrevChapterVersions] = useState<
     ChapterVersion[]
   >([]);
+  const [previewChapterVersion, setPreviewChapterVersion] =
+    useState<ChapterVersion | null>(null);
   const { data, isPending } = useChapterAndVersionsQuery(chapterSlug);
   const queryClient = useQueryClient();
 
@@ -56,6 +58,8 @@ export const ChapterProvider = ({
         setChapter,
         setCurrentChapterVersion,
         setPrevChapterVersions,
+        previewChapterVersion,
+        setPreviewChapterVersion,
         isPending: isPending,
       }}
     >
