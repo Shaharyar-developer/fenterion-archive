@@ -12,6 +12,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 /**
  * TableInsertPopover
@@ -20,7 +27,7 @@ import { Separator } from "@/components/ui/separator";
  */
 export function TableInsertPopover({
   editor,
-  defaultWithHeader = true,
+  defaultWithHeader = false,
 }: {
   editor: Editor | null;
   defaultWithHeader?: boolean;
@@ -29,6 +36,7 @@ export function TableInsertPopover({
   const [hover, setHover] = useState<{ r: number; c: number } | null>(null);
   const [rows, setRows] = useState(3);
   const [cols, setCols] = useState(3);
+  const [withHeader, setWithHeader] = useState(defaultWithHeader);
 
   const maxQuick = 5;
   const maxCustom = 20;
@@ -81,7 +89,7 @@ export function TableInsertPopover({
                           .insertTable({
                             rows: newRows,
                             cols: newCols,
-                            withHeaderRow: defaultWithHeader,
+                            withHeaderRow: withHeader,
                           })
                           .run();
                       }
@@ -123,7 +131,7 @@ export function TableInsertPopover({
                 .insertTable({
                   rows,
                   cols,
-                  withHeaderRow: defaultWithHeader,
+                  withHeaderRow: withHeader,
                 })
                 .run();
             }
@@ -173,6 +181,19 @@ export function TableInsertPopover({
             </label>
           </div>
           <Separator className="my-1" />
+          <div className="flex items-center gap-2 justify-center">
+            <Checkbox
+              id="header-row"
+              checked={withHeader}
+              onCheckedChange={(val) => setWithHeader(val === true)}
+            />
+            <label
+              htmlFor="header-row"
+              className="text-xs select-none cursor-pointer"
+            >
+              Header row
+            </label>
+          </div>
           <Button
             size="sm"
             type="submit"
@@ -186,5 +207,114 @@ export function TableInsertPopover({
     </Popover>
   );
 }
+
+export function TableContextMenu({
+  editor,
+  onOpenChange,
+  children,
+}: {
+  editor: Editor | null;
+  onOpenChange: (val: boolean) => void;
+  children: React.ReactNode;
+}) {
+  // Helper to run a command and close menu
+  const run = (cb: () => void) => () => {
+    cb();
+    onOpenChange(false);
+  };
+  return (
+    <ContextMenu onOpenChange={onOpenChange}>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().addColumnBefore().run())}
+          disabled={!editor}
+        >
+          Add column before
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().addColumnAfter().run())}
+          disabled={!editor}
+        >
+          Add column after
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().deleteColumn().run())}
+          disabled={!editor}
+        >
+          Delete column
+        </ContextMenuItem>
+        <Separator />
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().addRowBefore().run())}
+          disabled={!editor}
+        >
+          Add row above
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().addRowAfter().run())}
+          disabled={!editor}
+        >
+          Add row below
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().deleteRow().run())}
+          disabled={!editor}
+        >
+          Delete row
+        </ContextMenuItem>
+        <Separator />
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().mergeCells().run())}
+          disabled={!editor}
+        >
+          Merge cells
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().splitCell().run())}
+          disabled={!editor}
+        >
+          Split cell
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().mergeOrSplit().run())}
+          disabled={!editor}
+        >
+          Merge or split
+        </ContextMenuItem>
+        <Separator />
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().toggleHeaderRow().run())}
+          disabled={!editor}
+        >
+          Toggle header row
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() =>
+            editor?.chain().focus().toggleHeaderColumn().run()
+          )}
+          disabled={!editor}
+        >
+          Toggle header column
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().toggleHeaderCell().run())}
+          disabled={!editor}
+        >
+          Toggle header cell
+        </ContextMenuItem>
+        <Separator />
+        <ContextMenuItem
+          onClick={run(() => editor?.chain().focus().deleteTable().run())}
+          disabled={!editor}
+          className="text-destructive"
+        >
+          Delete table
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 
 export default TableInsertPopover;

@@ -12,9 +12,9 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-
+import { TableContextMenu } from "./table-insert-popover";
 
 interface MDEditorProps {
   content?: string;
@@ -48,25 +48,25 @@ const MDEditor = ({
       Table.configure({
         HTMLAttributes: {
           class:
-            "w-full caption-bottom text-sm border-collapse  overflow-hidden",
+            "w-full caption-bottom text-sm border-collapse  overflow-hidden max-w-xl text-lg mx-6 mx-auto",
         },
       }),
       TableHeader.configure({
         HTMLAttributes: {
           class:
-            "[&_tr]:border-b bg-muted/50 border-b py-2 first:rounded-tl-3xl last:rounded-tr-3xl font-medium",
+            "[&_tr]:border-b bg-popover last:border-r-0 border-r border-b py-2 font-medium",
         },
       }),
       TableRow.configure({
         HTMLAttributes: {
           class:
-            "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+            "hover:bg-muted data-[state=selected]:bg-muted border-b transition-colors",
         },
       }),
       TableCell.configure({
         HTMLAttributes: {
           class:
-            "p-2 align-middle whitespace-nowrap border-b border-muted/50 first:border-l border-r border-muted/50 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+            "p-2 align-middle whitespace-nowrap border-b border-border last:border-r-0 border-r bg-popover [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         },
       }),
     ],
@@ -132,8 +132,35 @@ const MDEditor = ({
     if (editor && onReady) onReady(editor as any);
   }, [editor, onReady]);
 
-  return (
+  // Track if a table is selected for context menu
+  const [tableMenuOpen, setTableMenuOpen] = useState(false);
+  const [isTableSelected, setIsTableSelected] = useState(false);
+
+  useEffect(() => {
+    if (!editor) return;
+    const checkTable = () => {
+      setIsTableSelected(editor.isActive("table"));
+    };
+    editor.on("selectionUpdate", checkTable);
+    editor.on("transaction", checkTable);
+    checkTable();
+    return () => {
+      editor.off("selectionUpdate", checkTable);
+      editor.off("transaction", checkTable);
+    };
+  }, [editor]);
+
+  // Wrap EditorContent in TableContextMenu if table is selected
+  const editorContent = (
     <EditorContent editor={editor} className={cn(className, "md-editor")} />
+  );
+
+  return isTableSelected ? (
+    <TableContextMenu editor={editor} onOpenChange={setTableMenuOpen}>
+      {editorContent}
+    </TableContextMenu>
+  ) : (
+    editorContent
   );
 };
 
