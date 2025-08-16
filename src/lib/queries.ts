@@ -152,3 +152,25 @@ export const chapterAndVersionOptions = (chapterSlug: string) =>
 
 export const useChapterAndVersionsQuery = (chapterSlug: string) =>
   useQuery(chapterAndVersionOptions(chapterSlug));
+
+// Fetch a work (by slug) and all its chapter metadata in a single hook for UI (e.g. sidebar)
+// Returns null if slug absent or work not found.
+export const workChaptersBySlugQuery = (workSlug?: string) => {
+  return useQuery({
+    queryKey: ["workChaptersBySlug", workSlug],
+    enabled: !!workSlug,
+    queryFn: async () => {
+      if (!workSlug) return null;
+      try {
+        const work = await client.work.getBySlug({ slug: workSlug });
+        if (!work) return null;
+        const chapters = await client.chapter.getAllMetaByWorkId({
+          workId: work.id,
+        });
+        return { work, chapters } as const;
+      } catch (e) {
+        return null;
+      }
+    },
+  });
+};

@@ -105,9 +105,14 @@ export function ChapterEditorView(props: { workSlug: string }) {
 
   // Initialize content from current version (not preview) when first ready
   useEffect(() => {
-    if (!isPending && !content && currentChapterVersion?.content) {
-      setContent(currentChapterVersion.content);
-      lastPersistedRef.current = currentChapterVersion.content;
+    if (!isPending && content === null && currentChapterVersion) {
+      const initial =
+        currentChapterVersion.content !== undefined &&
+        currentChapterVersion.content !== null
+          ? currentChapterVersion.content
+          : "";
+      setContent(initial);
+      lastPersistedRef.current = initial;
     }
   }, [isPending, currentChapterVersion?.id]);
 
@@ -141,23 +146,39 @@ export function ChapterEditorView(props: { workSlug: string }) {
   // If current chapter version content re-hydrates (e.g. after publish/unpublish) update local editor state when not dirty
   // When switching preview version update displayed content (without marking dirty)
   useEffect(() => {
-    if (previewChapterVersion && previewChapterVersion.content) {
-      setContent(previewChapterVersion.content);
+    if (previewChapterVersion) {
+      if (previewChapterVersion.content !== undefined) {
+        setContent(
+          previewChapterVersion.content === null
+            ? ""
+            : previewChapterVersion.content
+        );
+      }
       return;
     }
-    if (!previewChapterVersion && currentChapterVersion?.content) {
-      setContent(currentChapterVersion.content);
-      if (!dirty) lastPersistedRef.current = currentChapterVersion.content;
+    if (!previewChapterVersion && currentChapterVersion) {
+      if (currentChapterVersion.content !== undefined) {
+        setContent(
+          currentChapterVersion.content === null
+            ? ""
+            : currentChapterVersion.content
+        );
+        if (!dirty)
+          lastPersistedRef.current =
+            currentChapterVersion.content === null
+              ? ""
+              : currentChapterVersion.content;
+      }
     }
-  }, [previewChapterVersion?.id, currentChapterVersion?.content]);
+  }, [previewChapterVersion?.id, currentChapterVersion?.content, dirty]);
 
   const handleContentChange = useCallback(
     (val: string) => {
       if (readOnly) return; // Ignore edits in read-only mode (belt & suspenders)
       setContent(val);
-  const base = lastPersistedRef.current;
-  const changed = (val || "") !== base;
-  setDirty(changed);
+      const base = lastPersistedRef.current;
+      const changed = (val || "") !== base;
+      setDirty(changed);
     },
     [dirty, readOnly]
   );
@@ -168,12 +189,15 @@ export function ChapterEditorView(props: { workSlug: string }) {
     const was = wasPreviewingRef.current;
     const isNow = !!previewChapterVersion;
     if (was && !isNow) {
-      // just exited preview
-      if (currentChapterVersion?.content) {
-        setContent(currentChapterVersion.content);
-        // Align dirty flag with latest persisted content (avoid accidental save of stale preview text)
-  lastPersistedRef.current = currentChapterVersion.content;
-  setDirty(false);
+      if (currentChapterVersion) {
+        const latest =
+          currentChapterVersion.content === null ||
+          currentChapterVersion.content === undefined
+            ? ""
+            : currentChapterVersion.content;
+        setContent(latest);
+        lastPersistedRef.current = latest;
+        setDirty(false);
       }
     }
     wasPreviewingRef.current = isNow;

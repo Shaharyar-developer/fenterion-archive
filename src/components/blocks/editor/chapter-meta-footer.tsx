@@ -87,7 +87,6 @@ export function ChapterMetaFooter({
     if (editor) cb();
   };
 
-  // Superscript/Subscript extensions must be loaded in editor setup (see main editor file)
 
   return (
     <TooltipProvider delayDuration={150}>

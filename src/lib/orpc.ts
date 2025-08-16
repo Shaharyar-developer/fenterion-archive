@@ -307,12 +307,21 @@ export const createChapterDraft = authenticated
 
     try {
       await db.transaction(async (tx) => {
+        // Get the next position for this work
+        const [{ maxPosition } = { maxPosition: 0 }] = await tx
+          .select({
+            maxPosition: sql<number>`COALESCE(MAX(${chapters.position}), 0)`,
+          })
+          .from(chapters)
+          .where(eq(chapters.workId, workId));
+
         await tx.insert(chapters).values({
           ...input,
           id: chapterId,
           workId,
           slug,
           currentVersionId,
+          position: maxPosition + 1,
         });
 
         await tx.insert(chapterVersions).values({
@@ -408,14 +417,6 @@ export const getAllChaptersMetaByWorkId = authenticated
     const chapters = await db.query.chapters.findMany({
       where: (chapter, { eq }) => eq(chapter.workId, input.workId),
       orderBy: (chapter, { asc }) => asc(chapter.position),
-      columns: {
-        id: true,
-        workId: true,
-        slug: true,
-        position: true,
-        createdAt: true,
-        updatedAt: true,
-      },
     });
     return chapters;
   });

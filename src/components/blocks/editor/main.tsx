@@ -7,6 +7,10 @@ import HardBreak from "@tiptap/extension-hard-break";
 import Underline from "@tiptap/extension-underline";
 import Superscript from "@tiptap/extension-superscript";
 import Subscript from "@tiptap/extension-subscript";
+import { TableKit } from "@tiptap/extension-table";
+import { TableHeader } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table";
+import { TableCell } from "@tiptap/extension-table";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +43,12 @@ const MDEditor = ({
       HardBreak,
       Superscript,
       Subscript,
+      TableKit.configure({
+        table: { resizable: true },
+      }),
+      TableHeader,
+      TableRow,
+      TableCell,
     ],
     content,
     editable: !readOnly,

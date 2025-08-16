@@ -18,6 +18,7 @@ import { client } from "@/lib/orpc.client";
 import { useRouter } from "next/navigation";
 import { chaptersQuery } from "@/lib/queries";
 import { Skeleton } from "../ui/skeleton";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Tooltip,
   TooltipContent,
@@ -74,6 +75,7 @@ export function ChapterList({
 }) {
   const { loading, run } = useAsyncAction();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const handleSubmit = async (data: z.infer<typeof formSchema>) => {
     const title = data.title.trim();
@@ -82,6 +84,13 @@ export function ChapterList({
         workId: work.id,
         title,
       });
+      // Invalidate the queries to update sidebar and other components
+      await queryClient.invalidateQueries({
+        queryKey: ["userChapters", work.id],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["workChaptersBySlug", work.slug],
+      });
       router.push(ROUTES.dashboard.works.bySlugChapter(work.slug, slug));
     });
   };
@@ -89,7 +98,7 @@ export function ChapterList({
   const isPending = loading;
 
   return (
-    <Card className="h-full">
+    <Card className="max-h-full">
       <Popover>
         <CardHeader className="pb-2 flex flex-row items-center justify-between pr-4">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -108,7 +117,7 @@ export function ChapterList({
             <Skeleton className="h-full w-full" />
           </>
         ) : (
-          <CardContent className="p-0">
+          <CardContent className="p-0 max-h-[250px] overflow-auto">
             {chapters.length === 0 ? (
               <div className="p-6 text-sm text-muted-foreground flex flex-col gap-4 items-start">
                 <div>
@@ -248,6 +257,7 @@ function ChapterRow({ work, chapter }: { work: Work; chapter: Chapter }) {
 function ChapterActions({ work, chapter }: { work: Work; chapter: Chapter }) {
   const { loading, run } = useAsyncAction();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false); // alert dialog open
   const [confirmTitle, setConfirmTitle] = useState("");
   const matched = confirmTitle.trim() === chapter.title.trim();
@@ -255,6 +265,13 @@ function ChapterActions({ work, chapter }: { work: Work; chapter: Chapter }) {
   const handleDelete = async () => {
     await run("Delete Chapter", async () => {
       await client.chapter.delete({ workId: work.id, chapterId: chapter.id });
+      // Invalidate the queries to update sidebar and other components
+      await queryClient.invalidateQueries({
+        queryKey: ["userChapters", work.id],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["workChaptersBySlug", work.slug],
+      });
       setOpen(false);
       router.refresh();
     });

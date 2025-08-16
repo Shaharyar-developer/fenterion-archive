@@ -16,7 +16,7 @@ export const dashboardBreadcrumbs: Record<string, BreadcrumbConfig> = {
       if (!slug) return "Unknown Work";
       const res = await client.work.getBySlug({ slug: slug });
 
-      return res.title || "Unknown Work";
+      return res?.title || "Unknown Work";
     },
     href: ({ slug }) => `/dashboard/works/${slug}`,
   },
