@@ -7,13 +7,14 @@ import HardBreak from "@tiptap/extension-hard-break";
 import Underline from "@tiptap/extension-underline";
 import Superscript from "@tiptap/extension-superscript";
 import Subscript from "@tiptap/extension-subscript";
-
-import { useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
 import { Table } from "@tiptap/extension-table";
 import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
+
+import { useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
+
 
 interface MDEditorProps {
   content?: string;

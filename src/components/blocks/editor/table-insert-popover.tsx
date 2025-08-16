@@ -172,10 +172,10 @@ export function TableInsertPopover({
               />
             </label>
           </div>
+          <Separator className="my-1" />
           <Button
             size="sm"
             type="submit"
-            variant="outline"
             className="h-8 text-xs"
             aria-label="Insert custom size table"
           >
