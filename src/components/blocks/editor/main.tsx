@@ -7,12 +7,13 @@ import HardBreak from "@tiptap/extension-hard-break";
 import Underline from "@tiptap/extension-underline";
 import Superscript from "@tiptap/extension-superscript";
 import Subscript from "@tiptap/extension-subscript";
-import { TableKit } from "@tiptap/extension-table";
-import { TableHeader } from "@tiptap/extension-table";
-import { TableRow } from "@tiptap/extension-table";
-import { TableCell } from "@tiptap/extension-table";
+
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { Table } from "@tiptap/extension-table";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
+import TableCell from "@tiptap/extension-table-cell";
 
 interface MDEditorProps {
   content?: string;
@@ -43,12 +44,30 @@ const MDEditor = ({
       HardBreak,
       Superscript,
       Subscript,
-      TableKit.configure({
-        table: { resizable: true },
+      Table.configure({
+        HTMLAttributes: {
+          class:
+            "w-full caption-bottom text-sm border-collapse  overflow-hidden",
+        },
       }),
-      TableHeader,
-      TableRow,
-      TableCell,
+      TableHeader.configure({
+        HTMLAttributes: {
+          class:
+            "[&_tr]:border-b bg-muted/50 border-b py-2 first:rounded-tl-3xl last:rounded-tr-3xl font-medium",
+        },
+      }),
+      TableRow.configure({
+        HTMLAttributes: {
+          class:
+            "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        },
+      }),
+      TableCell.configure({
+        HTMLAttributes: {
+          class:
+            "p-2 align-middle whitespace-nowrap border-b border-muted/50 first:border-l border-r border-muted/50 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        },
+      }),
     ],
     content,
     editable: !readOnly,

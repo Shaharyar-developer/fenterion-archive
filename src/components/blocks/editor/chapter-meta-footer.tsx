@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/popover";
 import FontPicker from "../font-picker";
 import { toZalgo, fromZalgo } from "@/lib/utils";
+import TableInsertPopover from "./table-insert-popover";
 
 interface ChapterMetaFooterProps {
   editor: Editor | null;
@@ -86,7 +87,6 @@ export function ChapterMetaFooter({
   const run = (cb: () => void) => () => {
     if (editor) cb();
   };
-
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -284,6 +284,8 @@ export function ChapterMetaFooter({
                 </TooltipTrigger>
                 <TooltipContent side="top">Horizontal rule</TooltipContent>
               </Tooltip>
+              {/* Table insert popover */}
+              <TableInsertPopover editor={editor} />
             </div>
             <div className="mx-1 h-5 w-px bg-border" />
             <Tooltip>
