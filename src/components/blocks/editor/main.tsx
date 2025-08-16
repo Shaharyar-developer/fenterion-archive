@@ -48,7 +48,7 @@ const MDEditor = ({
       Table.configure({
         HTMLAttributes: {
           class:
-            "w-full caption-bottom text-sm border-collapse  overflow-hidden max-w-xl text-lg mx-6 mx-auto",
+            "w-full caption-bottom text-sm rounded-t-3xl rounded-b-3xl p-2 border-collapse  overflow-hidden max-w-xl text-lg mx-6 mx-auto ring-2 ring-border",
         },
       }),
       TableHeader.configure({
@@ -60,13 +60,13 @@ const MDEditor = ({
       TableRow.configure({
         HTMLAttributes: {
           class:
-            "hover:bg-muted data-[state=selected]:bg-muted border-b transition-colors",
+            "hover:bg-muted data-[state=selected]:bg-muted border-b last:border-b-0 transition-colors",
         },
       }),
       TableCell.configure({
         HTMLAttributes: {
           class:
-            "p-2 align-middle whitespace-nowrap border-b border-border last:border-r-0 border-r bg-popover [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+            "p-3 align-middle whitespace-nowrap border-border last:border-r-0 border-r bg-popover [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         },
       }),
     ],
