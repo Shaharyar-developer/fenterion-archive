@@ -65,8 +65,11 @@ const MDEditor = ({
       }),
       TableCell.configure({
         HTMLAttributes: {
-          class:
-            "p-3 align-middle whitespace-nowrap border-border last:border-r-0 border-r bg-popover [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+          class: [
+            "p-3 align-middle whitespace-nowrap border-border last:border-r-0 border-r bg-popover",
+            "[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+            "data-[selected]:bg-primary/10 data-[selected]:ring-2 data-[selected]:ring-primary/40 data-[selected]:z-10",
+          ].join(" "),
         },
       }),
     ],

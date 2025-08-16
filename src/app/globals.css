@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -131,7 +131,7 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-      font-family: "Fira Mono", monospace;
+    font-family: "Fira Mono", monospace;
   }
   body {
     @apply bg-background text-foreground;
@@ -157,13 +157,28 @@
     /* Hard breaks stay tighter than paragraph spacing */
     line-height: 1.2;
   }
-  .md-editor p:first-child { margin-top: 0; }
-  .md-editor p:last-child { margin-bottom: 0; }
-.ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  float: left;
-  pointer-events: none;
-  height: 0;
-  @apply text-muted-foreground text-lg;
-}
+  .md-editor p:first-child {
+    margin-top: 0;
+  }
+  .md-editor p:last-child {
+    margin-bottom: 0;
+  }
+  .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    pointer-events: none;
+    height: 0;
+    @apply text-muted-foreground text-lg;
+  }
+  /* Table cell selection: adhere to design language */
+  .ProseMirror .selectedCell {
+    background-color: var(--color-primary, #e5e7eb); /* fallback to Tailwind gray-200 */
+    /* subtle highlight, not too saturated */
+    box-shadow: 0 0 0 2px var(--color-primary, #e5e7eb) inset;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .ProseMirror td.selectedCell,
+  .ProseMirror th.selectedCell {
+    border-radius: var(--radius-3xl, 0.5rem);
+  }
 }
